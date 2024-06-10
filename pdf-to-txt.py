@@ -21,8 +21,10 @@ def save_text_to_file(text, output_path):
 def main(pdf_path):
     extracted_text = extract_text_from_pdf(pdf_path)
     
-    # 디렉토리 생성
-    output_dir = 'D:/Users/ie-woo/Documents/GitHub/ABBA Communication/pdf-to-txt/abba/extracted'
+    # pdf_path와 같은 디렉토리 설정
+    output_dir = os.path.dirname(pdf_path)
+    
+    # 디렉토리 생성 (이미 존재하는 경우에도 동작하게 설정)
     os.makedirs(output_dir, exist_ok=True)
     
     # 파일 이름에서 확장자 제거하고 .txt 확장자 추가
@@ -34,5 +36,5 @@ def main(pdf_path):
     print(f"Extracted text saved to {output_file_path}")
 
 # 사용 예제
-pdf_path = 'abba\곽민희.pdf'
+pdf_path = r'abba\장수진.pdf'
 main(pdf_path)

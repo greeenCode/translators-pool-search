@@ -4,8 +4,8 @@ from datetime import datetime
 
 # 소스 폴더와 타겟 경로 설정
 source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사'
-target_folder = r'D:\Users\ie-woo\Documents\GitHub\ABBA Communication\pdf-to-txt\abba\extracted'
-target_path = os.path.join(target_folder, 'file_info.xlsx')
+target_folder = r'D:\Users\ie-woo\Documents\GitHub\ABBA Communication\translators-pool-search\abba\extracted'
+target_path = os.path.join(target_folder, 'file_name.xlsx')
 
 # 기본 파일 수정일 설정
 default_file_date = datetime(2000, 1, 1)
@@ -15,7 +15,7 @@ file_data = []
 
 # 제외할 시스템 파일 및 폴더 목록
 system_files = ['desktop.ini', 'Thumbs.db']
-excluded_char = '#'
+excluded_char = '@'
 
 # 특정일 이후 파일로 진행할지 물어봄
 use_default_date = input(f"Do you want to use the default file date {default_file_date.date()}? (yes/y to use default): ").strip().lower()
