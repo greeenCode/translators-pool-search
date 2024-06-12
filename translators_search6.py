@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 
-## 소스 폴더 내 pdf, html에서 텍스트를 추출하여 OpenAI api 호출, 분석하여 번역사 정보를 엑셀파일에 저장 ##
-## 다수 파일처리를 위한 
-## Checkpoint 저장 및 재개 기능 추가 - 
-## 에러 처리 및 로깅 기능 추가 - 에러 발생한 파일 정보를 기록 후 계속 진행
+## 소스 폴더 내 pdf, html에서 텍스트를 추출하여 OpenAI api 호출, 분석하여 번역사 정보를 엑셀파일에 저장하는 프로젝트
+# - 다수 파일처리를 위한 
+#   - Checkpoint 저장 및 재개 기능 추가
+#       - 저장 시 파일명+처리시간
+#   - 에러 처리 및 로깅 기능 추가 - 에러 발생한 파일 정보를 기록 후 계속 진행
+# - 엑셀 A1셀에 생성일자 기록
+# - batch 처리
+#   - api 호출 수를 줄이기 위해 한 번 호출에 다수(batch_size)의 추출 텍스트 전달
 
 import os
 import pandas as pd
@@ -13,6 +17,7 @@ import yaml
 import fitz  # PyMuPDF
 import json
 from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font
 from html_to_txt_return import extract_text_from_html
 import re
 import pickle
@@ -25,9 +30,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r'abba'
-target_folder = r'abba\@extracted'
-target_path = os.path.join(target_folder, 'file_info13.xlsx')
+source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba'
+target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
+target_path = os.path.join(target_folder, 'profiles_data4.xlsx')
 checkpoint_path = os.path.join(target_folder, 'checkpoint.pkl')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
@@ -49,25 +54,12 @@ def extract_text_from_pdf(file_path):
         log_error(f"Error extracting text from PDF {file_path}: {e}")
     return text
 
-def extract_text_from_txt(file_path):
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            text = file.read()
-    except Exception as e:
-        log_error(f"Error extracting text from TXT {file_path}: {e}")
-        text = ""
-    return text
-
 def extract_text_from_html(file_path):
     text = ""
     try:
         # Selenium 옵션 설정
         chrome_options = Options()
         chrome_options.add_argument("--headless")  # 브라우저 창을 띄우지 않음
-        # chrome_options.add_argument("--disable-gpu")  # GPU 사용 안함
-        chrome_options.add_argument("--no-sandbox")  # 샌드박스 모드 사용 안함
-
-        # ChromeDriver 경로 설정
         chrome_driver_path = r'C:\Util\chromedriver-win64\chromedriver.exe'  # ChromeDriver 경로로 변경
         service = Service(chrome_driver_path)
 
@@ -106,10 +98,10 @@ def clean_response_text(text):
     text = re.sub(r'[\x00-\x1F\x7F]', '', text)
     return text
 
-def extract_information(text):
-    prompt_text = f"""
+def batch_extract_information(texts):
+    batch_prompt_text = f"""
     주어진 텍스트를 분석해서 다음 정보 항목을 JSON 형식으로 추출해줘. 
-    번역사의 이름, 이메일, 전화번호, 현 거주지(도시 이름까지만), 자기 소개 개요, 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어, 통역 가능한 언어, 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무, 그밖에 번역사로서 경쟁력 등을 아래의 출력문 사례처럼 작성해줘.
+    번역사의 이름, 이메일, 전화번호, 현 거주지(도시 이름까지만), 자기 소개 개요(공백 포함 300자 이내로), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어, 통역 가능한 언어, 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력 등을 아래의 출력문 사례처럼 작성해줘.
 
     {{
         "이름": "양중남",
@@ -134,16 +126,18 @@ def extract_information(text):
         미국에서 다수의 연구 논문 발표"
     }}
 
-    텍스트:
-    {text}
+    여러 텍스트를 처리해야 하므로, 각 텍스트를 분석한 결과는 개별적으로 JSON 배열로 반환해줘.
     """
+    prompt_texts = [f"텍스트:\n{text}" for text in texts]
+    prompt = f"{batch_prompt_text}\n\n" + "\n\n".join(prompt_texts)
+    
     response = openai.ChatCompletion.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": "You are a data extraction assistant."},
-            {"role": "user", "content": prompt_text}
+            {"role": "user", "content": prompt}
         ],
-        max_tokens=1500,
+        max_tokens=3000,
         temperature=0.5
     )
     response_text = response['choices'][0]['message']['content'].strip()
@@ -153,19 +147,20 @@ def extract_information(text):
     response_text = clean_response_text(response_text)
 
     try:
-        extracted_info = json.loads(response_text)
-        if '주요학력' in extracted_info:
-            extracted_info['주요학력'] = format_multiline_text(extracted_info['주요학력'])
-        if '주요경력' in extracted_info:
-            extracted_info['주요경력'] = format_multiline_text(extracted_info['주요경력'])
-        if '경쟁력' in extracted_info:
-            extracted_info['경쟁력'] = format_multiline_text(extracted_info['경쟁력'])
-        if '해외학업유무' in extracted_info:
-            extracted_info['해외학업유무'] = format_multiline_text(extracted_info['해외학업유무'])
-        return extracted_info
+        extracted_infos = json.loads(response_text)
+        for extracted_info in extracted_infos:
+            if '주요학력' in extracted_info:
+                extracted_info['주요학력'] = format_multiline_text(extracted_info['주요학력'])
+            if '주요경력' in extracted_info:
+                extracted_info['주요경력'] = format_multiline_text(extracted_info['주요경력'])
+            if '경쟁력' in extracted_info:
+                extracted_info['경쟁력'] = format_multiline_text(extracted_info['경쟁력'])
+            if '해외학업유무' in extracted_info:
+                extracted_info['해외학업유무'] = format_multiline_text(extracted_info['해외학업유무'])
+        return extracted_infos
     except json.JSONDecodeError as e:
         log_error(f"Error parsing JSON: {e}\nResponse text: {response_text}")
-        return None
+        return []
 
 def log_error(message):
     with open(log_path, 'a') as log_file:
@@ -175,9 +170,9 @@ def log_error(message):
 if os.path.exists(checkpoint_path):
     with open(checkpoint_path, 'rb') as f:
         checkpoint_data = pickle.load(f)
-        processed_files = checkpoint_data.get('processed_files', [])
+        processed_files_data = checkpoint_data.get('processed_files', [])
 else:
-    processed_files = []
+    processed_files_data = []
 
 # Main script
 file_data = []
@@ -185,18 +180,20 @@ system_files = ['desktop.ini', 'Thumbs.db']
 excluded_char = '@'
 default_file_date = datetime(2000, 1, 1)
 
-use_default_date = input(f"Do you want to use the default file date {default_file_date.date()}? (yes/y to use default): ").strip().lower()
+use_default_date = input(f"작업대상 파일의 수정일을 {default_file_date.date()} 이후로 하시겠습니까? (yes/y, [enter] to use default): ").strip().lower()
 if use_default_date in ('yes', 'y', ''):
     modified_file_date = default_file_date
 else:
-    date_input = input("Enter the modified file date (YYYY-MM-DD): ").strip()
+    date_input = input("새로운 수정일을 입력하세요 (YYYY-MM-DD): ").strip()
     try:
         modified_file_date = datetime.strptime(date_input, '%Y-%m-%d')
     except ValueError:
         print("Invalid date format. Please enter the date in YYYY-MM-DD format.")
         exit()
 
+# 기존 파일 수 카운팅
 file_count = 0
+processed_file_count = 0
 for root, dirs, files in os.walk(source_folder):
     dirs[:] = [d for d in dirs if excluded_char not in d]
     files = [file for file in files if file not in system_files and excluded_char not in file and (file.lower().endswith('.pdf') or file.lower().endswith('.html'))]
@@ -205,24 +202,36 @@ for root, dirs, files in os.walk(source_folder):
         file_modified_time = datetime.fromtimestamp(os.path.getmtime(file_path))
         if file_modified_time >= modified_file_date:
             file_count += 1
+            if file_path in [item['file_path'] for item in processed_files_data]:
+                processed_file_count += 1
 
-print(f"Total number of files in '{source_folder}' modified after {modified_file_date.date()}: {file_count}")
-proceed = input("Do you want to proceed? (yes/y to continue): ").strip().lower()
+# 실제 처리할 파일 수 계산
+actual_file_count = file_count - processed_file_count
+
+# 출력 부분
+print(f"지정한 날자 이후의 pdf, html 파일 수: {file_count}")
+print(f"이미 처리된 파일 수: {processed_file_count}")
+print(f"처리 대상 파일 수: {actual_file_count}")
+proceed = input("계속 진행하시겠습니까?(yes/y, [enter] to continue): ").strip().lower()
 
 if proceed in ('yes', 'y', ''):
     processed_count = 0
+    batch_size = 5  # 배치 처리 크기 설정
+    text_batch = []
+    file_batch = []
+
     for root, dirs, files in os.walk(source_folder):
         dirs[:] = [d for d in dirs if excluded_char not in d]
         files = [file for file in files if file not in system_files and excluded_char not in file and (file.lower().endswith('.pdf') or file.lower().endswith('.html'))]
         for file in files:
             file_path = os.path.join(root, file)
-            if file_path in processed_files:
+            if file_path in [item['file_path'] for item in processed_files_data]:
                 continue  # Skip already processed files
 
             file_modified_time = datetime.fromtimestamp(os.path.getmtime(file_path))
             if file_modified_time >= modified_file_date:
                 processed_count += 1
-                print(f"{processed_count}/{file_count} 번째 파일 작업 중 ... (파일명: {file})")
+                print(f"{processed_count}/{actual_file_count} 번째 파일 작업 중 ... (파일명: {file})")
 
                 try:
                     if file.lower().endswith('.pdf'):
@@ -231,29 +240,68 @@ if proceed in ('yes', 'y', ''):
                         text = extract_text_from_html(file_path)
                     else:
                         continue
-                    extracted_info = extract_information(text)
-                    if extracted_info is not None:
-                        extracted_info['파일수정일'] = file_modified_time.strftime('%Y-%m-%d')
-                        relative_file_path = os.path.relpath(file_path, start=target_folder)
-                        extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
-                        file_data.append(extracted_info)
 
-                        # Add to processed files and save checkpoint
-                        processed_files.append(file_path)
+                    text_batch.append(text)
+                    file_batch.append({
+                        "file_path": file_path,
+                        "file_modified_time": file_modified_time,
+                        "file_name": file
+                    })
+
+                    if len(text_batch) >= batch_size:
+                        extracted_infos = batch_extract_information(text_batch)
+                        for idx, extracted_info in enumerate(extracted_infos):
+                            if extracted_info is not None:
+                                extracted_info['파일수정일'] = file_batch[idx]['file_modified_time'].strftime('%Y-%m-%d')
+                                relative_file_path = os.path.relpath(file_batch[idx]['file_path'], start=target_folder)
+                                extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
+                                file_data.append(extracted_info)
+
+                                # Add to processed files data and save checkpoint
+                                processed_files_data.append({'file_path': file_batch[idx]['file_path'], 'processed_time': datetime.now()})
                         with open(checkpoint_path, 'wb') as f:
-                            pickle.dump({'processed_files': processed_files}, f)
+                            pickle.dump({'processed_files': processed_files_data}, f)
+                        
+                        # Reset batches
+                        text_batch = []
+                        file_batch = []
+
                 except Exception as e:
                     log_error(f"Error processing file {file_path}: {e}")
+
+    # 남은 배치 처리
+    if text_batch:
+        extracted_infos = batch_extract_information(text_batch)
+        for idx, extracted_info in enumerate(extracted_infos):
+            if extracted_info is not None:
+                extracted_info['파일수정일'] = file_batch[idx]['file_modified_time'].strftime('%Y-%m-%d')
+                relative_file_path = os.path.relpath(file_batch[idx]['file_path'], start=target_folder)
+                extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
+                file_data.append(extracted_info)
+
+                # Add to processed files data and save checkpoint
+                processed_files_data.append({'file_path': file_batch[idx]['file_path'], 'processed_time': datetime.now()})
+        with open(checkpoint_path, 'wb') as f:
+            pickle.dump({'processed_files': processed_files_data}, f)
 
     if file_data:
         if os.path.exists(target_path):
             wb = load_workbook(target_path)
             ws = wb.active
+            # 기존 엑셀 파일의 1행 갱신
+            current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
+            ws['A1'] = current_time_text
+            blue_font = Font(color="0000FF")
+            ws['A1'].font = blue_font
         else:
             wb = Workbook()
             ws = wb.active
             headers = ["이름", "File Link", "이메일", "전화번호", "거주지", "자기소개", "경력년수", "번역가능언어", "통역가능언어", "번역툴가능여부", "주요학력", "주요경력", "해외학업유무", "경쟁력", "파일수정일"]
-            ws.append(headers)
+            current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
+            ws.append([current_time_text])  # 1행에 생성일자 문구 추가
+            ws.append(headers)  # 2행에 헤더를 기록
+            blue_font = Font(color="0000FF")
+            ws['A1'].font = blue_font
         
         next_row = ws.max_row + 1
         
@@ -268,7 +316,7 @@ if proceed in ('yes', 'y', ''):
                 info.get("경력년수", ""),
                 info.get("번역가능언어", ""),
                 info.get("통역가능언어", ""),
-                info.get("번역툴가능여부", ""),
+                format_multiline_text(info.get("번역툴가능여부", "")),
                 format_multiline_text(info.get("주요학력", "")),
                 format_multiline_text(info.get("주요경력", "")),
                 format_multiline_text(info.get("해외학업유무", "")),
@@ -287,3 +335,4 @@ if proceed in ('yes', 'y', ''):
         print("No valid files processed.")
 else:
     print("Process aborted by the user.")
+

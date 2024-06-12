@@ -39,18 +39,23 @@
 ## 이슈
     - 엑셀에 append 할 때 앞 행 이름과 file link '0'으로    -o
     - *.html에서 text 추출              - 
-        - html을 브라우저에서 pdf 저장 후에도 텍스트 추출 불가  - 해결
+        - html을 브라우저에서 pdf 저장 후에도 텍스트 추출 불가  -o
         - selenium 이용 시도 필요
-            - 1회 실행 후  cpu, memory 자원 소진 누적   - 해결
+            - 1회 실행 후  cpu, memory 자원 소진 누적   -o
     - 컬럼 'Last Modified' - 년-월-일 단위로만  -O
-    - 대량 파일 처리 시
+    - 대량 파일 처리 시 -o
         - 중간 에러 시 처리
-    - 작업 파일경로
+    - 작업 파일경로 -o
         - 작업 폴더 경로
         - chatgpt 출력 링크 경로
         - 공유자가 보는 파일 링크 경로
-    - chatgpt에 파일첨부 시 파일링크 컬럼을 빈값으로 인식
-    - openai api의 요청 제한 확인
+    - chatgpt에 파일첨부 시 파일링크 컬럼을 빈값으로 인식 -o
+    - openai api의 요청 제한 확인 -o
+    - 파일 카운트 - checkpoint 파일 내 이미 처리된 파일 제외 필요 -O
+    - 엑셀 파일 A1셀에 '최종 목록 생성일: YYYY-MM-DD HH:MM, 파란색으로 -O
+    - checkpoint를 파일명-처리시간 으로 저장 -o
+    - checkpoint 저장 포인트 변경 이슈 
+        - file_data에 저장되어도 엑셀에 저장 안되는 경우 고려해야
 
 
 # prompt 작성 주의점

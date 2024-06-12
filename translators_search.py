@@ -25,9 +25,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r'abba'
-target_folder = r'abba\@extracted'
-target_path = os.path.join(target_folder, 'file_info13.xlsx')
+source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba'
+target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
+target_path = os.path.join(target_folder, 'profiles_data.xlsx')
 checkpoint_path = os.path.join(target_folder, 'checkpoint.pkl')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
