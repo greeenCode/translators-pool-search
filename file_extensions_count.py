@@ -1,3 +1,6 @@
+# 소스폴더 내 모든 파일의 확장자별 파일수 카운트
+# "@" 문자포함 폴더, 파일명 제외
+
 import os
 from collections import Counter
 
@@ -8,7 +11,14 @@ def count_files_and_extensions(source_folder):
 
     # 소스 폴더와 그 하위 폴더를 순회
     for root, dirs, files in os.walk(source_folder):
+        # '@'를 포함한 폴더를 제외
+        dirs[:] = [d for d in dirs if '@' not in d]
+
         for file in files:
+            # '@'를 포함한 파일 제외
+            if '@' in file:
+                continue
+
             # 파일 개수 증가
             total_files += 1
 

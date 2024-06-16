@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-## 소스 폴더 내 pdf, html에서 텍스트를 추출하여 OpenAI api 호출, 분석하여 번역사 정보를 엑셀파일에 저장하는 프로젝트
+## 소스 폴더 내 pdf, html, docx에서 텍스트를 추출하여 OpenAI api 호출, 분석하여 번역사 정보를 엑셀파일에 
+## 저장하는 프로젝트
 # - 다수 파일처리를 위한 
 #   - Checkpoint 저장 및 재개 기능 추가
 #       - 저장 시 파일명+처리시간
@@ -8,6 +9,9 @@
 # - 엑셀 A1셀에 생성일자 기록
 # - batch 처리
 #   - api 호출 수를 줄이기 위해 한 번 호출에 다수(batch_size)의 추출 텍스트 전달
+# - checkpoint.pkl에 file_data 저장, 엑셀저장 시 임시 .xlsx 생성
+#   - log_error 추가하여 로그남기고 프로세스 멈추지 않도록
+# - 정보항목에 '나이' 추가 -x
 
 import os
 import pandas as pd
@@ -18,9 +22,10 @@ import fitz  # PyMuPDF
 import json
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
-from html_to_txt_return import extract_text_from_html
 import re
 import pickle
+import shutil
+from docx import Document
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -32,7 +37,8 @@ from selenium.webdriver.support import expected_conditions as EC
 # Configurations
 source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba'
 target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
-target_path = os.path.join(target_folder, 'profiles_data4.xlsx')
+target_path = os.path.join(target_folder, 'profiles_data5.xlsx')
+temp_target_path = os.path.join(target_folder, 'profiles_data_temp.xlsx')
 checkpoint_path = os.path.join(target_folder, 'checkpoint.pkl')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
@@ -89,6 +95,29 @@ def extract_text_from_html(file_path):
     
     return text
 
+def extract_text_from_docx(file_path):
+    text = ""
+    try:
+        doc = Document(file_path)
+        full_text = []
+        
+        # 문서의 모든 문단을 순회하며 텍스트를 추출
+        for para in doc.paragraphs:
+            full_text.append(para.text)
+        
+        # 문서의 모든 표를 순회하며 텍스트를 추출
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = []
+                for cell in row.cells:
+                    row_text.append(cell.text)
+                full_text.append('\t'.join(row_text))
+        
+        text = '\n'.join(full_text)
+    except Exception as e:
+        log_error(f"Error extracting text from DOCX {file_path}: {e}")
+    return text
+
 def format_multiline_text(text):
     if isinstance(text, list):
         text = '; '.join(text)
@@ -101,13 +130,14 @@ def clean_response_text(text):
 def batch_extract_information(texts):
     batch_prompt_text = f"""
     주어진 텍스트를 분석해서 다음 정보 항목을 JSON 형식으로 추출해줘. 
-    번역사의 이름, 이메일, 전화번호, 현 거주지(도시 이름까지만), 자기 소개 개요(공백 포함 300자 이내로), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어, 통역 가능한 언어, 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력 등을 아래의 출력문 사례처럼 작성해줘.
+    번역사의 이름, 이메일, 전화번호, 현 거주지(도시 이름까지만), 나이(출생년도가 표시되어 있으면 현재 년도까지 추정된 나이와 출생년도를 표기하고, 출생년도가 없으면 명시된 나이를 표기하고, 알수없으면 '알 수 없음'), 자기 소개 개요(공백 포함 300자 이내로), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어, 통역 가능한 언어, 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력 등을 아래의 출력문 사례처럼 작성해줘.
 
     {{
         "이름": "양중남",
         "이메일": "inpraiseofdissent@gmail.com",
         "전화번호": "010-8751-1205",
         "거주지": "제주시",
+        "나이": " 44세, 1980생"
         "자기소개": "양중남은 한영 통역 대학원을 졸업하고 미국에서 심리학 박사 학위를 받은 후 20년간 연구원으로 재직하였으며, 현재는 8년 경력의 프리랜서 번역사로 활동하고 있습니다. 영어와 한국어를 자유롭게 구사하는 바이링구얼 번역사입니다.",
         "경력년수": "8년 from 2001",
         "번역가능언어": "영어>한국어, 한국어>영어",
@@ -171,8 +201,10 @@ if os.path.exists(checkpoint_path):
     with open(checkpoint_path, 'rb') as f:
         checkpoint_data = pickle.load(f)
         processed_files_data = checkpoint_data.get('processed_files', [])
+        current_batch_data = checkpoint_data.get('current_batch', [])
 else:
     processed_files_data = []
+    current_batch_data = []
 
 # Main script
 file_data = []
@@ -196,7 +228,7 @@ file_count = 0
 processed_file_count = 0
 for root, dirs, files in os.walk(source_folder):
     dirs[:] = [d for d in dirs if excluded_char not in d]
-    files = [file for file in files if file not in system_files and excluded_char not in file and (file.lower().endswith('.pdf') or file.lower().endswith('.html'))]
+    files = [file for file in files if file not in system_files and excluded_char not in file and (file.lower().endswith('.pdf') or file.lower().endswith('.html') or file.lower().endswith('.docx'))]
     for file in files:
         file_path = os.path.join(root, file)
         file_modified_time = datetime.fromtimestamp(os.path.getmtime(file_path))
@@ -209,7 +241,7 @@ for root, dirs, files in os.walk(source_folder):
 actual_file_count = file_count - processed_file_count
 
 # 출력 부분
-print(f"지정한 날자 이후의 pdf, html 파일 수: {file_count}")
+print(f"지정한 날자 이후의 pdf, html, docx 파일 수: {file_count}")
 print(f"이미 처리된 파일 수: {processed_file_count}")
 print(f"처리 대상 파일 수: {actual_file_count}")
 proceed = input("계속 진행하시겠습니까?(yes/y, [enter] to continue): ").strip().lower()
@@ -222,7 +254,7 @@ if proceed in ('yes', 'y', ''):
 
     for root, dirs, files in os.walk(source_folder):
         dirs[:] = [d for d in dirs if excluded_char not in d]
-        files = [file for file in files if file not in system_files and excluded_char not in file and (file.lower().endswith('.pdf') or file.lower().endswith('.html'))]
+        files = [file for file in files if file not in system_files and excluded_char not in file and (file.lower().endswith('.pdf') or file.lower().endswith('.html') or file.lower().endswith('.docx'))]
         for file in files:
             file_path = os.path.join(root, file)
             if file_path in [item['file_path'] for item in processed_files_data]:
@@ -238,6 +270,8 @@ if proceed in ('yes', 'y', ''):
                         text = extract_text_from_pdf(file_path)
                     elif file.lower().endswith('.html'):
                         text = extract_text_from_html(file_path)
+                    elif file.lower().endswith('.docx'):
+                        text = extract_text_from_docx(file_path)
                     else:
                         continue
 
@@ -260,7 +294,7 @@ if proceed in ('yes', 'y', ''):
                                 # Add to processed files data and save checkpoint
                                 processed_files_data.append({'file_path': file_batch[idx]['file_path'], 'processed_time': datetime.now()})
                         with open(checkpoint_path, 'wb') as f:
-                            pickle.dump({'processed_files': processed_files_data}, f)
+                            pickle.dump({'processed_files': processed_files_data, 'current_batch': file_data}, f)
                         
                         # Reset batches
                         text_batch = []
@@ -281,58 +315,72 @@ if proceed in ('yes', 'y', ''):
 
                 # Add to processed files data and save checkpoint
                 processed_files_data.append({'file_path': file_batch[idx]['file_path'], 'processed_time': datetime.now()})
+
         with open(checkpoint_path, 'wb') as f:
-            pickle.dump({'processed_files': processed_files_data}, f)
+            pickle.dump({'processed_files': processed_files_data, 'current_batch': file_data}, f)
 
     if file_data:
-        if os.path.exists(target_path):
-            wb = load_workbook(target_path)
-            ws = wb.active
-            # 기존 엑셀 파일의 1행 갱신
-            current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
-            ws['A1'] = current_time_text
-            blue_font = Font(color="0000FF")
-            ws['A1'].font = blue_font
-        else:
-            wb = Workbook()
-            ws = wb.active
-            headers = ["이름", "File Link", "이메일", "전화번호", "거주지", "자기소개", "경력년수", "번역가능언어", "통역가능언어", "번역툴가능여부", "주요학력", "주요경력", "해외학업유무", "경쟁력", "파일수정일"]
-            current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
-            ws.append([current_time_text])  # 1행에 생성일자 문구 추가
-            ws.append(headers)  # 2행에 헤더를 기록
-            blue_font = Font(color="0000FF")
-            ws['A1'].font = blue_font
-        
-        next_row = ws.max_row + 1
-        
-        for info in file_data:
-            row = [
-                info.get("이름", ""),
-                info.get("File Link", ""),
-                info.get("이메일", ""),
-                info.get("전화번호", ""),
-                info.get("거주지", ""),
-                info.get("자기소개", ""),
-                info.get("경력년수", ""),
-                info.get("번역가능언어", ""),
-                info.get("통역가능언어", ""),
-                format_multiline_text(info.get("번역툴가능여부", "")),
-                format_multiline_text(info.get("주요학력", "")),
-                format_multiline_text(info.get("주요경력", "")),
-                format_multiline_text(info.get("해외학업유무", "")),
-                format_multiline_text(info.get("경쟁력", "")),
-                info.get("파일수정일", "")
-            ]
-            ws.append(row)
-       
-        os.makedirs(target_folder, exist_ok=True)
         try:
-            wb.save(target_path)
-            print(f"Finished! File information saved to '{target_path}'")
+            if os.path.exists(target_path):
+                wb = load_workbook(target_path)
+                ws = wb.active
+                # 기존 엑셀 파일의 1행 갱신
+                current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
+                ws['A1'] = current_time_text
+                blue_font = Font(color="0000FF")
+                ws['A1'].font = blue_font
+            else:
+                wb = Workbook()
+                ws = wb.active
+                headers = ["이름", "File Link", "이메일", "전화번호", "거주지", "자기소개", "경력년수", "번역가능언어", "통역가능언어", "번역툴가능여부", "주요학력", "주요경력", "해외학업유무", "경쟁력", "파일수정일"]
+                current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
+                ws.append([current_time_text])  # 1행에 생성일자 문구 추가
+                ws.append(headers)  # 2행에 헤더를 기록
+                blue_font = Font(color="0000FF")
+                ws['A1'].font = blue_font
+
+            for info in file_data:
+                try:
+                    row = [
+                        info.get("이름", ""),
+                        info.get("File Link", ""),
+                        info.get("이메일", ""),
+                        info.get("전화번호", ""),
+                        info.get("거주지", ""),
+                        info.get("자기소개", ""),
+                        info.get("경력년수", ""),
+                        info.get("번역가능언어", ""),
+                        info.get("통역가능언어", ""),
+                        format_multiline_text(info.get("번역툴가능여부", "")),
+                        format_multiline_text(info.get("주요학력", "")),
+                        format_multiline_text(info.get("주요경력", "")),
+                        format_multiline_text(info.get("해외학업유무", "")),
+                        format_multiline_text(info.get("경쟁력", "")),
+                        info.get("파일수정일", "")
+                    ]
+                    ws.append(row)
+                except Exception as e:
+                    log_error(f"Error appending row for file {info.get('File Link', '')}: {e}")
+
+            os.makedirs(target_folder, exist_ok=True)
+            try:
+                # 임시 파일에 먼저 저장
+                wb.save(temp_target_path)
+                
+                # 임시 파일을 최종 파일로 이동
+                shutil.move(temp_target_path, target_path)
+                print(f"Finished! File information saved to '{target_path}'")
+                
+                # Save checkpoint without current batch
+                with open(checkpoint_path, 'wb') as f:
+                    pickle.dump({'processed_files': processed_files_data, 'current_batch': []}, f)
+            except Exception as e:
+                log_error(f"Error saving Excel file: {e}")
+                if os.path.exists(temp_target_path):
+                    os.remove(temp_target_path)
         except Exception as e:
-            log_error(f"Error saving Excel file: {e}")
+            log_error(f"Error processing Excel file: {e}")
     else:
         print("No valid files processed.")
 else:
     print("Process aborted by the user.")
-

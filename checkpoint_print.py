@@ -1,3 +1,5 @@
+# 저장된 checkpoint 파일에서 파일명 - 처리 시각 - +d 형태로 출력
+
 import os
 import pickle
 from datetime import datetime
