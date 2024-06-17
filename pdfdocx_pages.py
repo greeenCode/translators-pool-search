@@ -1,3 +1,5 @@
+# 소스폴더 내 모든 pdf, docx, doc 파일, 페이지 수 출력
+
 import os
 import pandas as pd
 from PyPDF2 import PdfReader
@@ -6,6 +8,9 @@ import docx
 # 소스 및 타겟 폴더 경로
 source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사'
 target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
+
+# 엑셀 저장 경로
+excel_path = os.path.join(target_folder, 'filelist_withpage.xlsx')
 
 # 모든 파일 경로를 리스트에 저장
 pdf_files = []
@@ -83,7 +88,6 @@ for doc_file in doc_files:
 df = pd.DataFrame(file_info_list, columns=['파일명', '링크', '페이지수', '확장자'])
 
 # 엑셀 파일로 저장
-excel_path = os.path.join(target_folder, 'file_list.xlsx')
 with pd.ExcelWriter(excel_path, engine='xlsxwriter') as writer:
     df.to_excel(writer, index=False, sheet_name='Files')
     

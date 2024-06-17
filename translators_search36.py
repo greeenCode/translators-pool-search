@@ -8,8 +8,8 @@
 # - selenium webdriver instance 재사용
 # 오류 발견 - 빈 텍스트 추출 시, 에러 출력 후 다름 파일로 진행 
 # 경과시간, 처리파일 수 출력
-
-# -*- coding: utf-8 -*-
+# 정보항목이 항상 값을 갖도록 prompt에 '알 수  없음' 추가
+# 각 파일에 대한 고유 식별자를 생성하고, 이를 사용하여 텍스트와 API 응답을 정확히 매칭
 
 import os
 import pandas as pd
@@ -23,6 +23,7 @@ from openpyxl.styles import Font
 import re
 from docx import Document
 import time  # 경과시간 측정을 위한 모듈
+import hashlib
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -32,9 +33,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\test'
+source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사'
 target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
-target_path = os.path.join(target_folder, 'test_translators_pool1.xlsx')
+target_path = os.path.join(target_folder, 'translators_pool2.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
 # Load API Key from credentials.yml
@@ -126,10 +127,14 @@ def clean_response_text(text):
     text = re.sub(r'[\x00-\x1F\x7F]', '', text)
     return text
 
-def batch_extract_information(texts):
-    batch_prompt_text = f"""
-    주어진 텍스트를 분석해서 다음 정보 항목을 JSON 형식으로 추출해줘. 
-    번역사의 이름, 이메일, 전화번호(+821027097063 > 010-2709-7063로 변환), 현 거주지(도시 이름까지만), 나이(출생년도가 표시되어 있으면 현재 년도까지 추정된 나이와 출생년도를 표기하고, 출생년도가 없으면 명시된 나이를 표기하고, 알수없으면 '알 수 없음'), 자기 소개 개요(공백 포함 400자 이내로, 알수없으면 '알 수 없음'), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어, 통역 가능한 언어, 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력 등을 아래의 출력문 사례처럼 작성해줘.
+def generate_unique_identifier(file_path):
+    return hashlib.md5(file_path.encode()).hexdigest()
+
+def batch_extract_information(texts_with_ids):
+    batch_prompt_text = """
+    주어진 텍스트를 분석해서 다음 정보 항목을 JSON 형식으로 추출해줘. 각 텍스트는 고유 식별자(unique_id)를 포함하고 있고, 이를 사용하여 응답에 동일한 고유 식별자를 포함시켜줘. 여러 텍스트를 처리해야 하므로, 각 텍스트를 분석한 결과는 개별적으로 JSON 배열로 반환해줘.
+
+    번역사의 이름(알수없으면 '알 수 없음'), 이메일(알수없으면 '알 수 없음'), 전화번호(+821027097063 > 010-2709-7063로 변환, 알수없으면 '알 수 없음'), 현 거주지(도시 이름까지만, 알수없으면 '알 수 없음'), 나이(출생년도가 표시되어 있으면 현재 년도까지 추정된 나이와 출생년도를 표기하고, 출생년도가 없으면 명시된 나이를 표기하고, 알수없으면 '알 수 없음'), 자기 소개 개요(프로필 내용을 바탕으로 공백 포함 400자 이내로 요약), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어(알수없으면 '알 수 없음'), 통역 가능한 언어(알수없으면 '알 수 없음'), 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력(알수없으면 '알 수 없음'), 주요 경력(알수없으면 '알 수 없음'), 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력(알수없으면 '알 수 없음') 등을 아래의 출력문 사례처럼 작성해줘. 
 
     {{
         "이름": "양중남",
@@ -154,24 +159,29 @@ def batch_extract_information(texts):
         영한 자막 번역 경험 (의학, 교육, 음악, 드라마 등 다양한 분야에서 약 700개 비디오 번역); 
         미국에서 다수의 연구 논문 발표"
     }}
-
-    여러 텍스트를 처리해야 하므로, 각 텍스트를 분석한 결과는 개별적으로 JSON 배열로 반환해줘.
     """
-    prompt_texts = [f"텍스트:\n{text}" for text in texts]
+    
+    prompt_texts = [f"텍스트:\n{text_with_id['text']}\n고유 식별자: {text_with_id['unique_id']}" for text_with_id in texts_with_ids]
     prompt = f"{batch_prompt_text}\n\n" + "\n\n".join(prompt_texts)
     
-    response = openai.ChatCompletion.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": "You are a data extraction assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=3000,
-        temperature=0.5
-    )
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a data extraction assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=3000,
+            temperature=0.5
+        )
+    except openai.error.OpenAIError as e:
+        log_error(f"OpenAI API error: {e}")
+        print(f"OpenAI API error: {e}")
+        print("Process terminated due to API error.")
+        exit(1)
+     
     response_text = response['choices'][0]['message']['content'].strip()
     
-    # Clean the response text
     response_text = response_text.replace("```json", "").replace("```", "").strip()
     response_text = clean_response_text(response_text)
 
@@ -246,23 +256,6 @@ actual_file_to_process_list = [file for file in file_to_process_list if os.path.
 
 actual_file_count = len(actual_file_to_process_list)
 
-# # 디버그 출력
-# print("file_to_process_list:")
-# for file in file_to_process_list:
-#     print(file)
-
-# print("\nrelative_file_to_process_list:")
-# for file in relative_file_to_process_list:
-#     print(file)
-
-# print("\nprocessed_file_list:")
-# for file in processed_file_list:
-#     print(file)
-
-# print("\nactual_file_to_process_list:")
-# for file in actual_file_to_process_list:
-#     print(file)
-
 # 출력 부분
 print(f"지정한 날자 이후의 pdf, html, docx 파일 수: {file_count}")
 print(f"이미 처리된 파일 수: {file_count - actual_file_count}")
@@ -272,8 +265,6 @@ if actual_file_count == 0:
     print("처리할 파일이 없습니다!")
     exit()
 proceed = input("계속 진행하시겠습니까?(yes/y, [enter] to continue): ").strip().lower()
-
-# 기존 코드에서 변경된 부분
 
 if proceed in ('yes', 'y', ''):
     start_time = time.time()  # 경과시간 측정을 위한 시작 시간 기록
@@ -288,6 +279,7 @@ if proceed in ('yes', 'y', ''):
         print(f"{processed_count}/{actual_file_count} 번째 파일 작업 중 ... (파일명: {os.path.basename(file_path)})")
 
         try:
+            unique_id = generate_unique_identifier(file_path)
             if file_path.lower().endswith('.pdf'):
                 text = extract_text_from_pdf(file_path)
             elif file_path.lower().endswith('.html'):
@@ -298,25 +290,28 @@ if proceed in ('yes', 'y', ''):
                 continue
 
             if text.strip():  # 텍스트가 비어있지 않으면 배치에 추가
-                text_batch.append(text)
+                text_batch.append({"text": text, "unique_id": unique_id})
                 file_batch.append({
                     "file_path": file_path,
                     "file_modified_time": datetime.fromtimestamp(os.path.getmtime(file_path)),
-                    "file_name": os.path.basename(file_path)
+                    "file_name": os.path.basename(file_path),
+                    "unique_id": unique_id
                 })
 
             if len(text_batch) >= batch_size:
                 extracted_infos = batch_extract_information(text_batch)
-                for idx, extracted_info in enumerate(extracted_infos):
-                    if extracted_info is not None:
-                        extracted_info['파일수정일'] = file_batch[idx]['file_modified_time'].strftime('%Y-%m-%d')
-                        relative_file_path = os.path.relpath(file_batch[idx]['file_path'], start=target_folder)
-                        extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
-                        file_data.append(extracted_info)
+                if len(text_batch) != len(extracted_infos):
+                    log_error(f"Mismatch in batch size: {len(text_batch)} texts, but {len(extracted_infos)} extracted infos")
+                else:
+                    for extracted_info in extracted_infos:
+                        for file_info in file_batch:
+                            if extracted_info['unique_id'] == file_info['unique_id']:
+                                extracted_info['파일수정일'] = file_info['file_modified_time'].strftime('%Y-%m-%d')
+                                relative_file_path = os.path.relpath(file_info['file_path'], start=target_folder)
+                                extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
+                                file_data.append(extracted_info)
+                                break
 
-                        # Add to processed files set
-                        processed_file_list.add(relative_file_path)
-                
                 # Save file_data to Excel
                 if file_data:
                     try:
@@ -381,15 +376,17 @@ if proceed in ('yes', 'y', ''):
     # 남은 배치 처리
     if text_batch:
         extracted_infos = batch_extract_information(text_batch)
-        for idx, extracted_info in enumerate(extracted_infos):
-            if extracted_info is not None:
-                extracted_info['파일수정일'] = file_batch[idx]['file_modified_time'].strftime('%Y-%m-%d')
-                relative_file_path = os.path.relpath(file_batch[idx]['file_path'], start=target_folder)
-                extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
-                file_data.append(extracted_info)
-
-                # Add to processed files set
-                processed_file_list.add(relative_file_path)
+        if len(text_batch) != len(extracted_infos):
+            log_error(f"Mismatch in batch size: {len(text_batch)} texts, but {len(extracted_infos)} extracted infos")
+        else:
+            for extracted_info in extracted_infos:
+                for file_info in file_batch:
+                    if extracted_info['unique_id'] == file_info['unique_id']:
+                        extracted_info['파일수정일'] = file_info['file_modified_time'].strftime('%Y-%m-%d')
+                        relative_file_path = os.path.relpath(file_info['file_path'], start=target_folder)
+                        extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
+                        file_data.append(extracted_info)
+                        break
 
         if file_data:
             try:

@@ -4,8 +4,8 @@ from datetime import datetime
 
 # 소스 폴더와 타겟 경로 설정
 source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사'
-target_folder = r'D:\Users\ie-woo\Documents\GitHub\ABBA Communication\translators-pool-search\abba\extracted'
-target_path = os.path.join(target_folder, 'file_name.xlsx')
+target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
+target_path = os.path.join(target_folder, 'filelist_bydate.xlsx')
 
 # 기본 파일 수정일 설정
 default_file_date = datetime(2000, 1, 1)
@@ -65,10 +65,9 @@ if proceed in ('yes', 'y', ''):
     # 타겟 폴더가 존재하지 않으면 생성
     os.makedirs(target_folder, exist_ok=True)
     
-    # 기존 엑셀 파일이 존재하는 경우, 기존 데이터에 추가
+    # 기존 엑셀 파일이 존재하는 경우, 삭제
     if os.path.exists(target_path):
-        existing_df = pd.read_excel(target_path)
-        df = pd.concat([existing_df, df], ignore_index=True)
+        os.remove(target_path)
     
     # 엑셀 파일로 저장
     df.to_excel(target_path, index=False)

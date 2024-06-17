@@ -19,6 +19,6 @@ def extract_text_from_docx(file_path):
     return '\n'.join(full_text)
 
 # 사용 예시
-file_path = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\영어\위미정_2023SEP.docx'  # 여기에 .docx 파일 경로를 입력하세요.
+file_path = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\러시아어\이력서_이현정.docx'  # 여기에 .docx 파일 경로를 입력하세요.
 extracted_text = extract_text_from_docx(file_path)
 print(extracted_text)
