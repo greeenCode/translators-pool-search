@@ -166,7 +166,7 @@ def batch_extract_information(texts_with_ids):
     
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a data extraction assistant."},
                 {"role": "user", "content": prompt}
