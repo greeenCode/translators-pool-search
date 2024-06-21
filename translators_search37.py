@@ -4,11 +4,10 @@
 # - 다수 파일처리에 에러발생 대비
 #   - 에러 처리 및 로깅 기능 추가 - 에러 발생한 파일 정보를 기록 후 계속 진행
 #   - 재시작 시 Checkpoint 사용않고 이전 결과물인 엑셀파일목록과 비교, 새 파일만 작업
-# - batch 처리
+# - batch 처리,
+# api call 에러 시 메시지 출력 후 종료
 # - selenium webdriver instance 재사용
-# 오류 발견 - 빈 텍스트 추출 시, 에러 출력 후 다름 파일로 진행 
-# 경과시간, 처리파일 수 출력
-# 정보항목이 항상 값을 갖도록 prompt에 '알 수  없음' 추가
+# 정보항목이 항상 값을 갖도록 prompt에 '알 수  없음' 추가>삭제
 # 각 파일에 대한 고유 식별자를 생성하고, 이를 사용하여 텍스트와 API 응답을 정확히 매칭
 # 사용 토큰수와 비용 출력
 
@@ -34,10 +33,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\test'
+source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사'
 target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
-target_path = os.path.join(target_folder, 'test_translators_pool4.xlsx')
+target_path = os.path.join(target_folder, 'translators_pool.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
+
+total_processed_tokens = 0
+total_processed_cost = 0.0
 
 # Load API Key from credentials.yml
 with open('config/credentials.yml', 'r') as file:
@@ -132,10 +134,12 @@ def generate_unique_identifier(file_path):
     return hashlib.md5(file_path.encode()).hexdigest()
 
 def batch_extract_information(texts_with_ids):
+    start_time = time.time()
+
     batch_prompt_text = """
     주어진 텍스트를 분석해서 다음 정보 항목을 JSON 형식으로 추출해줘. 각 텍스트는 고유 식별자(unique_id)를 포함하고 있고, 이를 사용하여 응답에 동일한 고유 식별자를 포함시켜줘. 여러 텍스트를 처리해야 하므로, 각 텍스트를 분석한 결과는 개별적으로 JSON 배열로 반환해줘.
 
-    번역사의 이름(알수없으면 '알 수 없음'), 이메일(알수없으면 '알 수 없음'), 전화번호(+821027097063 > 010-2709-7063로 변환, 알수없으면 '알 수 없음'), 현 거주지(도시 이름까지만, 알수없으면 '알 수 없음'), 나이(출생년도가 표시되어 있으면 현재 년도까지 추정된 나이와 출생년도를 표기하고, 출생년도가 없으면 명시된 나이를 표기하고, 알수없으면 '알 수 없음'), 자기 소개 개요(프로필 내용을 바탕으로 공백 포함 400자 이내로 가능한 충분히 요약), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어(알수없으면 '알 수 없음'), 통역 가능한 언어(알수없으면 '알 수 없음'), 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력(알수없으면 '알 수 없음'), 주요 경력(알수없으면 '알 수 없음'), 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력(알수없으면 '알 수 없음') 등을 아래의 출력문 사례처럼 작성해줘. 
+    번역사의 이름, 이메일, 전화번호(+821027097063 > 010-2709-7063로 변환, 알수없으면 '알 수 없음'), 현 거주지(도시 이름까지만, 알수없으면 '알 수 없음'), 나이(출생년도가 표시되어 있으면 현재 년도까지 추정된 나이와 출생년도를 표기하고, 출생년도가 없으면 명시된 나이를 표기하고, 알수없으면 '알 수 없음'), 자기 소개 개요(프로필 내용을 바탕으로 공백 포함 400자 이내로 가능한 충분히 요약), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어, 통역 가능한 언어, 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력 등을 아래의 출력문 사례처럼 작성해줘. 
 
     {{
         "이름": "양중남",
@@ -173,7 +177,7 @@ def batch_extract_information(texts_with_ids):
                 {"role": "system", "content": "You are a data extraction assistant."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=3000,
+            max_tokens=3500,
             temperature=0.5
         )
     except openai.error.OpenAIError as e:
@@ -213,12 +217,23 @@ def batch_extract_information(texts_with_ids):
         
         input_cost = (prompt_tokens / 1_000_000) * 5
         output_cost = (completion_tokens / 1_000_000) * 15
-        total_cost = input_cost + output_cost
+        batch_cost = input_cost + output_cost
+
+        global total_processed_tokens
+        global total_processed_cost
+        total_processed_tokens += total_tokens
+        total_processed_cost += batch_cost
+
+        end_time = time.time()
+        batch_processed_time = end_time - start_time
+        batch_processed_time_str = f"{int(batch_processed_time // 60):02}:{int(batch_processed_time % 60):02}"
         
         print(f"Prompt tokens: {prompt_tokens}")
         print(f"Completion tokens: {completion_tokens}")
         print(f"Total tokens: {total_tokens}")
-        print(f"Cost: ${total_cost:.5f}")
+        print(f"Cost: ${batch_cost:.5f}")
+        print(f"batch 프로세스 경과시간: {batch_processed_time_str}")
+        print(f"\n")
 
         return extracted_infos
 
@@ -283,9 +298,9 @@ actual_file_to_process_list = [file for file in file_to_process_list if os.path.
 actual_file_count = len(actual_file_to_process_list)
 
 # 출력 부분
-print(f"지정한 날자 이후의 pdf, html, docx 파일 수: {file_count}")
+print(f"지정일 이후 처리대상 파일 수: {file_count}")
 print(f"이미 처리된 파일 수: {file_count - actual_file_count}")
-print(f"처리 대상 파일 수: {actual_file_count}")
+print(f"실제 처리 대상 파일 수: {actual_file_count}")
 # 처리할 파일 수가 0인 경우 종료
 if actual_file_count == 0:
     print("처리할 파일이 없습니다!")
@@ -296,7 +311,7 @@ if proceed in ('yes', 'y', ''):
     start_time = time.time()  # 경과시간 측정을 위한 시작 시간 기록
 
     processed_count = 0
-    batch_size = 5  # 배치 처리 크기 설정
+    batch_size = 4  # 배치 처리 크기 설정
     text_batch = []
     file_batch = []
 
@@ -477,9 +492,13 @@ if proceed in ('yes', 'y', ''):
     # 처리 결과 출력
     print(f"Finished! File information saved to '{target_path}'")  # 마지막에 한 번만 출력되도록 이동
 
-    print(f"처리 대상 파일 수: {actual_file_count}")
+    print(f"지정일 이후 처리대상 파일 수 : {file_count}")
+    print(f"실제 처리 대상 파일 수: {actual_file_count}")
     print(f"엑셀에 저장된 파일 수: {saved_files_count}")
     print(f"프로세스 경과시간: {processed_time_str}")
+    print(f"\n")
+    print(f"Total processed tokens: {total_processed_tokens}")
+    print(f"Total processed Cost: ${total_processed_cost:.5f}")
 
 else:
     print("Process aborted by the user.")
