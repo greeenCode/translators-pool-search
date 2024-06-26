@@ -4,11 +4,16 @@
 # - 다수 파일처리에 에러발생 대비
 #   - 에러 처리 및 로깅 기능 추가 - 에러 발생한 파일 정보를 기록 후 계속 진행
 #   - 재시작 시 Checkpoint 사용않고 이전 결과물인 엑셀파일목록과 비교, 새 파일만 작업
-# - batch 처리
+# - batch 처리,
+# api call 에러 시 메시지 출력 후 종료
 # - selenium webdriver instance 재사용
-# 오류 발견 - 빈 텍스트 추출 시, 에러 출력 후 다름 파일로 진행 
+# 정보항목이 항상 값을 갖도록 prompt에 '알 수  없음' 추가>삭제
+# 각 파일에 대한 고유 식별자를 생성하고, 이를 사용하여 텍스트와 API 응답을 정확히 매칭
+# 사용 토큰수와 비용 출력
+# 엑셀저장 수정 - 첫행 삭제하고 파일이름에 날짜표기
+# batch_size 4>3, '경쟁력'을 자세히 기록하도록 prompt 수정
+# openai verson 0.28 / pip install openai==0.28.0
 
-# -*- coding: utf-8 -*-
 
 import os
 import pandas as pd
@@ -21,6 +26,8 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
 import re
 from docx import Document
+import time  # 경과시간 측정을 위한 모듈
+import hashlib
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -30,10 +37,16 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba'
+source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search"
 target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
-target_path = os.path.join(target_folder, 'profiles_data6.xlsx')
+
+# 엑셀 파일 저장 경로 수정
+current_date_str = datetime.now().strftime('%Y-%m-%d')
+target_path = os.path.join(target_folder, f'translators_pool_{current_date_str}.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
+
+total_processed_tokens = 0
+total_processed_cost = 0.0
 
 # Load API Key from credentials.yml
 with open('config/credentials.yml', 'r') as file:
@@ -124,10 +137,16 @@ def clean_response_text(text):
     text = re.sub(r'[\x00-\x1F\x7F]', '', text)
     return text
 
-def batch_extract_information(texts):
-    batch_prompt_text = f"""
-    주어진 텍스트를 분석해서 다음 정보 항목을 JSON 형식으로 추출해줘. 
-    번역사의 이름, 이메일, 전화번호(+821027097063 > 010-2709-7063로 변환), 현 거주지(도시 이름까지만), 나이(출생년도가 표시되어 있으면 현재 년도까지 추정된 나이와 출생년도를 표기하고, 출생년도가 없으면 명시된 나이를 표기하고, 알수없으면 '알 수 없음'), 자기 소개 개요(공백 포함 400자 이내로), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어, 통역 가능한 언어, 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력 등을 아래의 출력문 사례처럼 작성해줘.
+def generate_unique_identifier(file_path):
+    return hashlib.md5(file_path.encode()).hexdigest()
+
+def batch_extract_information(texts_with_ids):
+    start_time = time.time()
+
+    batch_prompt_text = """
+    주어진 텍스트를 분석해서 다음 정보 항목을 JSON 형식으로 추출해줘. 각 텍스트는 고유 식별자(unique_id)를 포함하고 있고, 이를 사용하여 응답에 동일한 고유 식별자를 포함시켜줘. 여러 텍스트를 처리해야 하므로, 각 텍스트를 분석한 결과는 개별적으로 JSON 배열로 반환해줘.
+
+    번역사의 이름, 이메일, 전화번호(+821027097063 > 010-2709-7063로 변환, 알수없으면 '알 수 없음'), 현 거주지(도시 이름까지만, 알수없으면 '알 수 없음'), 나이(출생년도가 표시되어 있으면 현재 년도까지 추정된 나이와 출생년도를 표기하고, 출생년도가 없으면 명시된 나이를 표기하고, 알 수없으면 '알 수 없음'), 자기 소개 개요(프로필 내용을 바탕으로 400자 이내로 가능한 자세히 요약), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어, 통역 가능한 언어, 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력(주요학력과 주요경력, 그 밖의 정보를 바탕으로 400자 이내로 가능한 자세히 요약 ) 등을 아래의 출력문 사례처럼 작성해줘. 
 
     {{
         "이름": "양중남",
@@ -139,7 +158,7 @@ def batch_extract_information(texts):
         "경력년수": "8년 from 2001",
         "번역가능언어": "영어>한국어, 한국어>영어",
         "통역가능언어": "영어, 일본어",
-        "번역툴가능여부": Trados, MemoQ
+        "번역툴가능여부": "Trados, MemoQ"
         "주요학력": 
         "박사, 실험 심리학, New York University (1995-1999); 
         학사, 영어 교육과, 제주 대학교 (1977-1981)",
@@ -151,31 +170,40 @@ def batch_extract_information(texts):
         "다양한 분야 번역 경험 (자연과학, 사회과학, 비즈니스, 금융, 의학, 컴퓨터 과학 및 IT); 
         영한 자막 번역 경험 (의학, 교육, 음악, 드라마 등 다양한 분야에서 약 700개 비디오 번역); 
         미국에서 다수의 연구 논문 발표"
+        "unique_id": "5f4dcc3b5aa765d61d8327deb882cf99"
     }}
-
-    여러 텍스트를 처리해야 하므로, 각 텍스트를 분석한 결과는 개별적으로 JSON 배열로 반환해줘.
     """
-    prompt_texts = [f"텍스트:\n{text}" for text in texts]
+    
+    prompt_texts = [f"텍스트:\n{text_with_id['text']}\n고유 식별자: {text_with_id['unique_id']}" for text_with_id in texts_with_ids]
     prompt = f"{batch_prompt_text}\n\n" + "\n\n".join(prompt_texts)
     
-    response = openai.ChatCompletion.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": "You are a data extraction assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=3000,
-        temperature=0.5
-    )
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a data extraction assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=3500,
+            temperature=0.5
+        )
+    except openai.error.OpenAIError as e:
+        log_error(f"OpenAI API error: {e}")
+        print(f"OpenAI API error: {e}")
+        print("Process terminated due to API error.")
+        exit(1)
+     
     response_text = response['choices'][0]['message']['content'].strip()
     
-    # Clean the response text
     response_text = response_text.replace("```json", "").replace("```", "").strip()
     response_text = clean_response_text(response_text)
 
     try:
         extracted_infos = json.loads(response_text)
         for extracted_info in extracted_infos:
+            if 'unique_id' not in extracted_info:
+                log_error(f"Missing unique_id in response: {extracted_info}")
+                continue            
             if '주요학력' in extracted_info:
                 extracted_info['주요학력'] = format_multiline_text(extracted_info['주요학력'])
             if '주요경력' in extracted_info:
@@ -184,7 +212,38 @@ def batch_extract_information(texts):
                 extracted_info['경쟁력'] = format_multiline_text(extracted_info['경쟁력'])
             if '해외학업유무' in extracted_info:
                 extracted_info['해외학업유무'] = format_multiline_text(extracted_info['해외학업유무'])
+
+        # # Print the extracted information
+        # for info in extracted_infos:
+        #     print(json.dumps(info, ensure_ascii=False, indent=4))
+
+        # Calculate and print the number of tokens used and cost
+        prompt_tokens = response['usage']['prompt_tokens']
+        completion_tokens = response['usage']['completion_tokens']
+        total_tokens = response['usage']['total_tokens']
+        
+        input_cost = (prompt_tokens / 1_000_000) * 5
+        output_cost = (completion_tokens / 1_000_000) * 15
+        batch_cost = input_cost + output_cost
+
+        global total_processed_tokens
+        global total_processed_cost
+        total_processed_tokens += total_tokens
+        total_processed_cost += batch_cost
+
+        end_time = time.time()
+        batch_processed_time = end_time - start_time
+        batch_processed_time_str = f"{int(batch_processed_time // 60):02}:{int(batch_processed_time % 60):02}"
+        
+        print(f"Prompt tokens: {prompt_tokens}")
+        print(f"Completion tokens: {completion_tokens}")
+        print(f"batch 프로세스 경과시간: {batch_processed_time_str}")
+        print(f"Total tokens: {total_tokens}")
+        print(f"Cost: ${batch_cost:.5f}")
+        print(f"\n")
+
         return extracted_infos
+
     except json.JSONDecodeError as e:
         log_error(f"Error parsing JSON: {e}\nResponse text: {response_text}")
         return []
@@ -192,6 +251,46 @@ def batch_extract_information(texts):
 def log_error(message):
     with open(log_path, 'a') as log_file:
         log_file.write(f"{datetime.now().isoformat()} - {message}\n")
+
+def save_to_excel(file_data, target_path):
+    try:
+        if os.path.exists(target_path):
+            wb = load_workbook(target_path)
+            ws = wb.active
+        else:
+            wb = Workbook()
+            ws = wb.active
+            headers = ["이름", "File Link", "이메일", "전화번호", "거주지", "나이", "자기소개", "경력년수", "번역가능언어", "통역가능언어", "번역툴가능여부", "주요학력", "주요경력", "해외학업유무", "경쟁력", "파일수정일"]
+            ws.append(headers)  # 첫 행에 헤더를 기록
+
+        for info in file_data:
+            try:
+                row = [
+                    info.get("이름", ""),
+                    info.get("File Link", ""),
+                    info.get("이메일", ""),
+                    info.get("전화번호", ""),
+                    info.get("거주지", ""),
+                    info.get("나이", ""),
+                    info.get("자기소개", ""),
+                    info.get("경력년수", ""),
+                    info.get("번역가능언어", ""),
+                    info.get("통역가능언어", ""),
+                    format_multiline_text(info.get("번역툴가능여부", "")),
+                    format_multiline_text(info.get("주요학력", "")),
+                    format_multiline_text(info.get("주요경력", "")),
+                    format_multiline_text(info.get("해외학업유무", "")),
+                    format_multiline_text(info.get("경쟁력", "")),
+                    info.get("파일수정일", "")
+                ]
+                ws.append(row)
+            except Exception as e:
+                log_error(f"Error appending row for file {info.get('File Link', '')}: {e}")
+
+        os.makedirs(target_folder, exist_ok=True)
+        wb.save(target_path)
+    except Exception as e:
+        log_error(f"Error processing Excel file: {e}")
 
 # Main script
 file_data = []
@@ -228,7 +327,7 @@ processed_file_list = set()
 if os.path.exists(target_path):
     wb = load_workbook(target_path)
     ws = wb.active
-    for row in ws.iter_rows(min_row=3, values_only=True):
+    for row in ws.iter_rows(min_row=2, values_only=True):  # 첫 행에 헤더가 있으므로 2행부터 시작
         link = row[1]
         if link and link.startswith('=HYPERLINK'):
             # 파일 경로 추출
@@ -244,27 +343,10 @@ actual_file_to_process_list = [file for file in file_to_process_list if os.path.
 
 actual_file_count = len(actual_file_to_process_list)
 
-# # 디버그 출력
-# print("file_to_process_list:")
-# for file in file_to_process_list:
-#     print(file)
-
-# print("\nrelative_file_to_process_list:")
-# for file in relative_file_to_process_list:
-#     print(file)
-
-# print("\nprocessed_file_list:")
-# for file in processed_file_list:
-#     print(file)
-
-# print("\nactual_file_to_process_list:")
-# for file in actual_file_to_process_list:
-#     print(file)
-
 # 출력 부분
-print(f"지정한 날자 이후의 pdf, html, docx 파일 수: {file_count}")
+print(f"지정일 이후 처리대상 파일 수: {file_count}")
 print(f"이미 처리된 파일 수: {file_count - actual_file_count}")
-print(f"처리 대상 파일 수: {actual_file_count}")
+print(f"실제 처리 대상 파일 수: {actual_file_count}")
 # 처리할 파일 수가 0인 경우 종료
 if actual_file_count == 0:
     print("처리할 파일이 없습니다!")
@@ -272,8 +354,10 @@ if actual_file_count == 0:
 proceed = input("계속 진행하시겠습니까?(yes/y, [enter] to continue): ").strip().lower()
 
 if proceed in ('yes', 'y', ''):
+    start_time = time.time()  # 경과시간 측정을 위한 시작 시간 기록
+
     processed_count = 0
-    batch_size = 5  # 배치 처리 크기 설정
+    batch_size = 3  # 배치 처리 크기 설정
     text_batch = []
     file_batch = []
 
@@ -282,6 +366,7 @@ if proceed in ('yes', 'y', ''):
         print(f"{processed_count}/{actual_file_count} 번째 파일 작업 중 ... (파일명: {os.path.basename(file_path)})")
 
         try:
+            unique_id = generate_unique_identifier(file_path)
             if file_path.lower().endswith('.pdf'):
                 text = extract_text_from_pdf(file_path)
             elif file_path.lower().endswith('.html'):
@@ -292,79 +377,34 @@ if proceed in ('yes', 'y', ''):
                 continue
 
             if text.strip():  # 텍스트가 비어있지 않으면 배치에 추가
-                text_batch.append(text)
+                text_batch.append({"text": text, "unique_id": unique_id})
                 file_batch.append({
                     "file_path": file_path,
                     "file_modified_time": datetime.fromtimestamp(os.path.getmtime(file_path)),
-                    "file_name": os.path.basename(file_path)
+                    "file_name": os.path.basename(file_path),
+                    "unique_id": unique_id
                 })
 
             if len(text_batch) >= batch_size:
                 extracted_infos = batch_extract_information(text_batch)
-                for idx, extracted_info in enumerate(extracted_infos):
-                    if extracted_info is not None:
-                        extracted_info['파일수정일'] = file_batch[idx]['file_modified_time'].strftime('%Y-%m-%d')
-                        relative_file_path = os.path.relpath(file_batch[idx]['file_path'], start=target_folder)
-                        extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
-                        file_data.append(extracted_info)
+                if len(text_batch) != len(extracted_infos):
+                    log_error(f"Mismatch in batch size: {len(text_batch)} texts, but {len(extracted_infos)} extracted infos")
+                else:
+                    for extracted_info in extracted_infos:
+                        for file_info in file_batch:
+                            if extracted_info['unique_id'] == file_info['unique_id']:
+                                extracted_info['파일수정일'] = file_info['file_modified_time'].strftime('%Y-%m-%d')
+                                relative_file_path = os.path.relpath(file_info['file_path'], start=target_folder)
+                                extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
+                                file_data.append(extracted_info)
+                                break
 
-                        # Add to processed files set
-                        processed_file_list.add(relative_file_path)
-                
                 # Save file_data to Excel
                 if file_data:
-                    try:
-                        if os.path.exists(target_path):
-                            wb = load_workbook(target_path)
-                            ws = wb.active
-                            # 기존 엑셀 파일의 1행 갱신
-                            current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
-                            ws['A1'] = current_time_text
-                            blue_font = Font(color="0000FF")
-                            ws['A1'].font = blue_font
-                        else:
-                            wb = Workbook()
-                            ws = wb.active
-                            headers = ["이름", "File Link", "이메일", "전화번호", "거주지", "나이", "자기소개", "경력년수", "번역가능언어", "통역가능언어", "번역툴가능여부", "주요학력", "주요경력", "해외학업유무", "경쟁력", "파일수정일"]
-                            current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
-                            ws.append([current_time_text])  # 1행에 생성일자 문구 추가
-                            ws.append(headers)  # 2행에 헤더를 기록
-                            blue_font = Font(color="0000FF")
-                            ws['A1'].font = blue_font
-
-                        for info in file_data:
-                            try:
-                                row = [
-                                    info.get("이름", ""),
-                                    info.get("File Link", ""),
-                                    info.get("이메일", ""),
-                                    info.get("전화번호", ""),
-                                    info.get("거주지", ""),
-                                    info.get("나이", ""),
-                                    info.get("자기소개", ""),
-                                    info.get("경력년수", ""),
-                                    info.get("번역가능언어", ""),
-                                    info.get("통역가능언어", ""),
-                                    format_multiline_text(info.get("번역툴가능여부", "")),
-                                    format_multiline_text(info.get("주요학력", "")),
-                                    format_multiline_text(info.get("주요경력", "")),
-                                    format_multiline_text(info.get("해외학업유무", "")),
-                                    format_multiline_text(info.get("경쟁력", "")),
-                                    info.get("파일수정일", "")
-                                ]
-                                ws.append(row)
-                            except Exception as e:
-                                log_error(f"Error appending row for file {info.get('File Link', '')}: {e}")
-
-                        os.makedirs(target_folder, exist_ok=True)
-                        wb.save(target_path)
-                        print(f"Finished! File information saved to '{target_path}'")
-                        
-                        # Reset file_data after saving
-                        file_data = []
-                    except Exception as e:
-                        log_error(f"Error processing Excel file: {e}")
-
+                    save_to_excel(file_data, target_path)
+                    # Reset file_data after saving
+                    file_data = []
+                    
                 # Reset batches
                 text_batch = []
                 file_batch = []
@@ -376,64 +416,43 @@ if proceed in ('yes', 'y', ''):
     # 남은 배치 처리
     if text_batch:
         extracted_infos = batch_extract_information(text_batch)
-        for idx, extracted_info in enumerate(extracted_infos):
-            if extracted_info is not None:
-                extracted_info['파일수정일'] = file_batch[idx]['file_modified_time'].strftime('%Y-%m-%d')
-                relative_file_path = os.path.relpath(file_batch[idx]['file_path'], start=target_folder)
-                extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
-                file_data.append(extracted_info)
-
-                # Add to processed files set
-                processed_file_list.add(relative_file_path)
+        if len(text_batch) != len(extracted_infos):
+            log_error(f"Mismatch in batch size: {len(text_batch)} texts, but {len(extracted_infos)} extracted infos")
+        else:
+            for extracted_info in extracted_infos:
+                for file_info in file_batch:
+                    if extracted_info['unique_id'] == file_info['unique_id']:
+                        extracted_info['파일수정일'] = file_info['file_modified_time'].strftime('%Y-%m-%d')
+                        relative_file_path = os.path.relpath(file_info['file_path'], start=target_folder)
+                        extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
+                        file_data.append(extracted_info)
+                        break
 
         if file_data:
-            try:
-                if os.path.exists(target_path):
-                    wb = load_workbook(target_path)
-                    ws = wb.active
-                    current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
-                    ws['A1'] = current_time_text
-                    blue_font = Font(color="0000FF")
-                    ws['A1'].font = blue_font
-                else:
-                    wb = Workbook()
-                    ws = wb.active
-                    headers = ["이름", "File Link", "이메일", "전화번호", "거주지", "나이", "자기소개", "경력년수", "번역가능언어", "통역가능언어", "번역툴가능여부", "주요학력", "주요경력", "해외학업유무", "경쟁력", "파일수정일"]
-                    current_time_text = datetime.now().strftime("On %Y-%m-%d %H:%M, the list below was last updated by OpenAI API")
-                    ws.append([current_time_text])
-                    ws.append(headers)
-                    blue_font = Font(color="0000FF")
-                    ws['A1'].font = blue_font
+            save_to_excel(file_data, target_path)
 
-                for info in file_data:
-                    try:
-                        row = [
-                            info.get("이름", ""),
-                            info.get("File Link", ""),
-                            info.get("이메일", ""),
-                            info.get("전화번호", ""),
-                            info.get("거주지", ""),
-                            info.get("나이", ""),
-                            info.get("자기소개", ""),
-                            info.get("경력년수", ""),
-                            info.get("번역가능언어", ""),
-                            info.get("통역가능언어", ""),
-                            format_multiline_text(info.get("번역툴가능여부", "")),
-                            format_multiline_text(info.get("주요학력", "")),
-                            format_multiline_text(info.get("주요경력", "")),
-                            format_multiline_text(info.get("해외학업유무", "")),
-                            format_multiline_text(info.get("경쟁력", "")),
-                            info.get("파일수정일", "")
-                        ]
-                        ws.append(row)
-                    except Exception as e:
-                        log_error(f"Error appending row for file {info.get('File Link', '')}: {e}")
+    end_time = time.time()  # 경과시간 측정을 위한 종료 시간 기록
+    processed_time = end_time - start_time  # 경과시간 계산
+    processed_time_str = time.strftime('%H:%M:%S', time.gmtime(processed_time))
 
-                os.makedirs(target_folder, exist_ok=True)
-                wb.save(target_path)
-                print(f"Finished! File information saved to '{target_path}'")
-            except Exception as e:
-                log_error(f"Error processing Excel file: {e}")
+    # 저장된 파일 수 계산
+    saved_files_count = 0
+    if os.path.exists(target_path):
+        wb = load_workbook(target_path)
+        ws = wb.active
+        saved_files_count = ws.max_row - 1  # 헤더를 제외한 실제 데이터 줄 수 계산
+
+    # 처리 결과 출력
+    print(f"Finished! File information saved to '{target_path}'")  # 마지막에 한 번만 출력되도록 이동
+
+    print(f"지정일 이후 처리대상 파일 수 : {file_count}")
+    print(f"실제 처리 대상 파일 수: {actual_file_count}")
+    print(f"엑셀에 저장된 파일 수: {saved_files_count}")
+    print(f"\n")
+    print(f"프로세스 경과시간: {processed_time_str}")
+    print(f"Total processed tokens: {total_processed_tokens}")
+    print(f"Total processed Cost: ${total_processed_cost:.5f}")
+
 else:
     print("Process aborted by the user.")
 

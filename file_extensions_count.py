@@ -7,7 +7,7 @@ def count_files_and_extensions(source_folder):
     extension_counts = Counter()
     
     # 제외할 확장자 목록 (일반적인 시스템 파일 확장자 포함)
-    excluded_extensions = {'.ini', '.sys', '.dll', '.exe', '.bat', '.log'}
+    excluded_extensions = {'.ini', '.db', '.sys', '.dll', '.exe', '.bat', '.log'}
 
     # 소스 폴더와 그 하위 폴더를 순회
     for root, dirs, files in os.walk(source_folder):
@@ -35,7 +35,7 @@ def count_files_and_extensions(source_folder):
     return total_files, extension_counts
 
 # 소스 폴더 지정
-source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사"
+source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\abba resource"
 
 # 함수 호출
 total_files, extension_counts = count_files_and_extensions(source_folder)
