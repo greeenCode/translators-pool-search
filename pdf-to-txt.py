@@ -36,5 +36,5 @@ def main(pdf_path):
     print(f"Extracted text saved to {output_file_path}")
 
 # 사용 예제
-pdf_path = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\태국어\Trados\최규리Fatin.pdf'
+pdf_path = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\abba resource\2020 이력서\기타 언어\냠게렐_이력서1.pdf"
 main(pdf_path)

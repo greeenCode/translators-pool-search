@@ -5,9 +5,9 @@ import pandas as pd
 from datetime import datetime
 
 # 소스 폴더와 타겟 경로 설정
-source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\Abba Resource@"
+source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\abba resource"
 target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
-target_path = os.path.join(target_folder, 'filelist_AAR.xlsx')
+target_path = os.path.join(target_folder, 'filelist_ar.xlsx')
 
 # 기본 파일 수정일 설정
 default_file_date = datetime(2000, 1, 1)
