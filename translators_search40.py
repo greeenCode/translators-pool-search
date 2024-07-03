@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-## 소스 폴더 내 pdf, html, docx에서 텍스트를 추출하여 OpenAI api 호출, 분석하여 번역사 정보를 엑셀파일에 저장하는 프로젝트
+# -x
+# 소스 폴더 내 pdf, html, docx에서 텍스트를 추출하여 OpenAI api 호출, 분석하여 번역사 정보를 엑셀파일에 저장하는 프로젝트
 # openai api 1.0버전 이상 시 api call 코드 수정 -x
 # - 다수 파일처리에 에러발생 대비
 #   - 에러 처리 및 로깅 기능 추가 - 에러 발생한 파일 정보를 기록 후 계속 진행
@@ -42,7 +43,8 @@ target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비�
 
 # 엑셀 파일 저장 경로 수정
 current_date_str = datetime.now().strftime('%Y-%m-%d')
-target_path = os.path.join(target_folder, f'translators_pool_{current_date_str}.xlsx')
+target_path = os.path.join(
+    target_folder, f'translators_pool_{current_date_str}.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
 total_processed_tokens = 0
@@ -54,6 +56,8 @@ api_key = os.getenv("OPENAI_API_KEY")
 
 client = openai.OpenAI()
 # Helper functions
+
+
 def extract_text_from_pdf(file_path):
     text = ""
     try:
@@ -68,12 +72,14 @@ def extract_text_from_pdf(file_path):
         print(f"Error extracting text from PDF {file_path}: {e}")
     return text
 
+
 # WebDriver 초기화
 chrome_options = Options()
 chrome_options.add_argument("--headless")  # 브라우저 창을 띄우지 않음
 chrome_driver_path = r'C:\Util\chromedriver-win64\chromedriver.exe'  # ChromeDriver 경로로 변경
 service = Service(chrome_driver_path)
 driver = webdriver.Chrome(service=service, options=chrome_options)
+
 
 def extract_text_from_html(file_path, driver):
     text = ""
@@ -83,7 +89,8 @@ def extract_text_from_html(file_path, driver):
             driver.get(f'file:///{os.path.abspath(file_path)}')
 
             # 잠시 대기하여 페이지가 완전히 로드되도록 함
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, 'body')))
 
             # 페이지의 전체 텍스트 추출
             text = driver.find_element(By.TAG_NAME, 'body').text
@@ -100,16 +107,17 @@ def extract_text_from_html(file_path, driver):
 
     return text
 
+
 def extract_text_from_docx(file_path):
     text = ""
     try:
         doc = Document(file_path)
         full_text = []
-        
+
         # 문서의 모든 문단을 순회하며 텍스트를 추출
         for para in doc.paragraphs:
             full_text.append(para.text)
-        
+
         # 문서의 모든 표를 순회하며 텍스트를 추출
         for table in doc.tables:
             for row in table.rows:
@@ -117,7 +125,7 @@ def extract_text_from_docx(file_path):
                 for cell in row.cells:
                     row_text.append(cell.text)
                 full_text.append('\t'.join(row_text))
-        
+
         text = '\n'.join(full_text)
 
         if not text.strip():  # 텍스트가 비어있는지 확인
@@ -127,17 +135,21 @@ def extract_text_from_docx(file_path):
         print(f"Error extracting text from DOCX {file_path}: {e}")
     return text
 
+
 def format_multiline_text(text):
     if isinstance(text, list):
         text = '; '.join(text)
     return text.replace('; ', ';\n')
 
+
 def clean_response_text(text):
     text = re.sub(r'[\x00-\x1F\x7F]', '', text)
     return text
 
+
 def generate_unique_identifier(file_path):
     return hashlib.md5(file_path.encode()).hexdigest()
+
 
 def batch_extract_information(texts_with_ids):
     start_time = time.time()
@@ -172,10 +184,11 @@ def batch_extract_information(texts_with_ids):
         "unique_id": "5f4dcc3b5aa765d61d8327deb882cf99"
     }}
     """
-    
-    prompt_texts = [f"텍스트:\n{text_with_id['text']}\n고유 식별자: {text_with_id['unique_id']}" for text_with_id in texts_with_ids]
+
+    prompt_texts = [
+        f"텍스트:\n{text_with_id['text']}\n고유 식별자: {text_with_id['unique_id']}" for text_with_id in texts_with_ids]
     prompt = f"{batch_prompt_text}\n\n" + "\n\n".join(prompt_texts)
-    
+
     try:
         response = client.chat_completions.create(
             model="gpt-4",
@@ -191,10 +204,11 @@ def batch_extract_information(texts_with_ids):
         print(f"OpenAI API error: {e}")
         print("Process terminated due to API error.")
         exit(1)
-    
+
     response_text = response.choices[0].message['content'].strip()
-    
-    response_text = response_text.replace("```json", "").replace("```", "").strip()
+
+    response_text = response_text.replace(
+        "```json", "").replace("```", "").strip()
     response_text = clean_response_text(response_text)
 
     try:
@@ -202,21 +216,25 @@ def batch_extract_information(texts_with_ids):
         for extracted_info in extracted_infos:
             if 'unique_id' not in extracted_info:
                 log_error(f"Missing unique_id in response: {extracted_info}")
-                continue            
+                continue
             if '주요학력' in extracted_info:
-                extracted_info['주요학력'] = format_multiline_text(extracted_info['주요학력'])
+                extracted_info['주요학력'] = format_multiline_text(
+                    extracted_info['주요학력'])
             if '주요경력' in extracted_info:
-                extracted_info['주요경력'] = format_multiline_text(extracted_info['주요경력'])
+                extracted_info['주요경력'] = format_multiline_text(
+                    extracted_info['주요경력'])
             if '경쟁력' in extracted_info:
-                extracted_info['경쟁력'] = format_multiline_text(extracted_info['경쟁력'])
+                extracted_info['경쟁력'] = format_multiline_text(
+                    extracted_info['경쟁력'])
             if '해외학업유무' in extracted_info:
-                extracted_info['해외학업유무'] = format_multiline_text(extracted_info['해외학업유무'])
+                extracted_info['해외학업유무'] = format_multiline_text(
+                    extracted_info['해외학업유무'])
 
         # Calculate and print the number of tokens used and cost
         prompt_tokens = response.usage['prompt_tokens']
         completion_tokens = response.usage['completion_tokens']
         total_tokens = response.usage['total_tokens']
-        
+
         input_cost = (prompt_tokens / 1_000_000) * 5
         output_cost = (completion_tokens / 1_000_000) * 15
         batch_cost = input_cost + output_cost
@@ -229,7 +247,7 @@ def batch_extract_information(texts_with_ids):
         end_time = time.time()
         batch_processed_time = end_time - start_time
         batch_processed_time_str = f"{int(batch_processed_time // 60):02}:{int(batch_processed_time % 60):02}"
-        
+
         print(f"Prompt tokens: {prompt_tokens}")
         print(f"Completion tokens: {completion_tokens}")
         print(f"batch 프로세스 경과시간: {batch_processed_time_str}")
@@ -243,9 +261,11 @@ def batch_extract_information(texts_with_ids):
         log_error(f"Error parsing JSON: {e}\nResponse text: {response_text}")
         return []
 
+
 def log_error(message):
     with open(log_path, 'a') as log_file:
         log_file.write(f"{datetime.now().isoformat()} - {message}\n")
+
 
 def save_to_excel(file_data, target_path):
     try:
@@ -255,7 +275,8 @@ def save_to_excel(file_data, target_path):
         else:
             wb = Workbook()
             ws = wb.active
-            headers = ["이름", "File Link", "이메일", "전화번호", "거주지", "나이", "자기소개", "경력년수", "번역가능언어", "통역가능언어", "번역툴가능여부", "주요학력", "주요경력", "해외학업유무", "경쟁력", "파일수정일"]
+            headers = ["이름", "File Link", "이메일", "전화번호", "거주지", "나이", "자기소개", "경력년수",
+                       "번역가능언어", "통역가능언어", "번역툴가능여부", "주요학력", "주요경력", "해외학업유무", "경쟁력", "파일수정일"]
             ws.append(headers)  # 첫 행에 헤더를 기록
 
         for info in file_data:
@@ -280,12 +301,14 @@ def save_to_excel(file_data, target_path):
                 ]
                 ws.append(row)
             except Exception as e:
-                log_error(f"Error appending row for file {info.get('File Link', '')}: {e}")
+                log_error(
+                    f"Error appending row for file {info.get('File Link', '')}: {e}")
 
         os.makedirs(target_folder, exist_ok=True)
         wb.save(target_path)
     except Exception as e:
         log_error(f"Error processing Excel file: {e}")
+
 
 # Main script
 file_data = []
@@ -293,7 +316,8 @@ system_files = ['desktop.ini', 'Thumbs.db']
 excluded_char = '@'
 default_file_date = datetime(2000, 1, 1)
 
-use_default_date = input(f"작업대상 파일의 수정일을 {default_file_date.date()} 이후로 하시겠습니까? (yes/y, [enter] to use default): ").strip().lower()
+use_default_date = input(
+    f"작업대상 파일의 수정일을 {default_file_date.date()} 이후로 하시겠습니까? (yes/y, [enter] to use default): ").strip().lower()
 if use_default_date in ('yes', 'y', ''):
     modified_file_date = default_file_date
 else:
@@ -309,10 +333,12 @@ file_count = 0
 file_to_process_list = []
 for root, dirs, files in os.walk(source_folder):
     dirs[:] = [d for d in dirs if excluded_char not in d]
-    files = [file for file in files if file not in system_files and excluded_char not in file and (file.lower().endswith('.pdf') or file.lower().endswith('.html') or file.lower().endswith('.docx'))]
+    files = [file for file in files if file not in system_files and excluded_char not in file and (
+        file.lower().endswith('.pdf') or file.lower().endswith('.html') or file.lower().endswith('.docx'))]
     for file in files:
         file_path = os.path.join(root, file)
-        file_modified_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+        file_modified_time = datetime.fromtimestamp(
+            os.path.getmtime(file_path))
         if file_modified_time >= modified_file_date:
             file_count += 1
             file_to_process_list.append(file_path)
@@ -331,10 +357,12 @@ if os.path.exists(target_path):
 
 
 # 상대 경로로 변환된 리스트 생성
-relative_file_to_process_list = [os.path.relpath(file, start=target_folder) for file in file_to_process_list]
+relative_file_to_process_list = [os.path.relpath(
+    file, start=target_folder) for file in file_to_process_list]
 
 # 실제 처리할 파일 목록 및 수 계산
-actual_file_to_process_list = [file for file in file_to_process_list if os.path.relpath(file, start=target_folder) not in processed_file_list]
+actual_file_to_process_list = [file for file in file_to_process_list if os.path.relpath(
+    file, start=target_folder) not in processed_file_list]
 
 actual_file_count = len(actual_file_to_process_list)
 
@@ -358,7 +386,8 @@ if proceed in ('yes', 'y', ''):
 
     for file_path in actual_file_to_process_list:
         processed_count += 1
-        print(f"{processed_count}/{actual_file_count} 번째 파일 작업 중 ... (파일명: {os.path.basename(file_path)})")
+        print(
+            f"{processed_count}/{actual_file_count} 번째 파일 작업 중 ... (파일명: {os.path.basename(file_path)})")
 
         try:
             unique_id = generate_unique_identifier(file_path)
@@ -383,13 +412,16 @@ if proceed in ('yes', 'y', ''):
             if len(text_batch) >= batch_size:
                 extracted_infos = batch_extract_information(text_batch)
                 if len(text_batch) != len(extracted_infos):
-                    log_error(f"Mismatch in batch size: {len(text_batch)} texts, but {len(extracted_infos)} extracted infos")
+                    log_error(
+                        f"Mismatch in batch size: {len(text_batch)} texts, but {len(extracted_infos)} extracted infos")
                 else:
                     for extracted_info in extracted_infos:
                         for file_info in file_batch:
                             if extracted_info['unique_id'] == file_info['unique_id']:
-                                extracted_info['파일수정일'] = file_info['file_modified_time'].strftime('%Y-%m-%d')
-                                relative_file_path = os.path.relpath(file_info['file_path'], start=target_folder)
+                                extracted_info['파일수정일'] = file_info['file_modified_time'].strftime(
+                                    '%Y-%m-%d')
+                                relative_file_path = os.path.relpath(
+                                    file_info['file_path'], start=target_folder)
                                 extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
                                 file_data.append(extracted_info)
                                 break
@@ -399,7 +431,7 @@ if proceed in ('yes', 'y', ''):
                     save_to_excel(file_data, target_path)
                     # Reset file_data after saving
                     file_data = []
-                    
+
                 # Reset batches
                 text_batch = []
                 file_batch = []
@@ -412,13 +444,16 @@ if proceed in ('yes', 'y', ''):
     if text_batch:
         extracted_infos = batch_extract_information(text_batch)
         if len(text_batch) != len(extracted_infos):
-            log_error(f"Mismatch in batch size: {len(text_batch)} texts, but {len(extracted_infos)} extracted infos")
+            log_error(
+                f"Mismatch in batch size: {len(text_batch)} texts, but {len(extracted_infos)} extracted infos")
         else:
             for extracted_info in extracted_infos:
                 for file_info in file_batch:
                     if extracted_info['unique_id'] == file_info['unique_id']:
-                        extracted_info['파일수정일'] = file_info['file_modified_time'].strftime('%Y-%m-%d')
-                        relative_file_path = os.path.relpath(file_info['file_path'], start=target_folder)
+                        extracted_info['파일수정일'] = file_info['file_modified_time'].strftime(
+                            '%Y-%m-%d')
+                        relative_file_path = os.path.relpath(
+                            file_info['file_path'], start=target_folder)
                         extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
                         file_data.append(extracted_info)
                         break
@@ -438,7 +473,8 @@ if proceed in ('yes', 'y', ''):
         saved_files_count = ws.max_row - 1  # 헤더를 제외한 실제 데이터 줄 수 계산
 
     # 처리 결과 출력
-    print(f"Finished! File information saved to '{target_path}'")  # 마지막에 한 번만 출력되도록 이동
+    # 마지막에 한 번만 출력되도록 이동
+    print(f"Finished! File information saved to '{target_path}'")
 
     print(f"지정일 이후 처리대상 파일 수 : {file_count}")
     print(f"실제 처리 대상 파일 수: {actual_file_count}")
