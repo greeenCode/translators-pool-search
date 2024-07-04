@@ -97,6 +97,15 @@
     - 파일명에 "@@" 표기
         - 김지현-번역-프리랜서-이력서 (1).pdf
 
+## 
+# 오류 - is empty
+2024-07-04T18:01:16.427452 - Error extracting text from DOCX D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\abba resource\2020 이력서\영어\박혜원_cv_분야별_kor.docx: Extracted text is empty
+
+2024-07-04T18:01:16.466402 - Error extracting text from DOCX D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\abba resource\2020 이력서\영어\박소운\업데이트_이력서_박소운_20210113.docx: Extracted text is empty
+
+1. 박혜원_cv_분야별_kor.docx: Extracted text is empty
+   docx > txt > docx  파일명+@@ > api call > 원복 후처리
+
 
 
 

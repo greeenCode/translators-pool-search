@@ -33,14 +33,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\@test\test_sub"
+source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\abba resource"
 target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
 
 # 배치 처리 크기 설정
 batch_size = 1
 
 # 엑셀 파일 저장 경로 수정
-target_path = os.path.join(target_folder, f'translators_jsonTest.xlsx')
+target_path = os.path.join(target_folder, f'translators_pool_2nd.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
 total_processed_tokens = 0
@@ -125,6 +125,15 @@ def extract_text_from_docx(file_path):
                 for cell in row.cells:
                     row_text.append(cell.text)
                 full_text.append('\t'.join(row_text))
+
+        # 문서의 헤더와 푸터에서 텍스트 추출
+        for section in doc.sections:
+            header = section.header
+            footer = section.footer
+            for para in header.paragraphs:
+                full_text.append(para.text)
+            for para in footer.paragraphs:
+                full_text.append(para.text)
 
         text = '\n'.join(full_text)
 
