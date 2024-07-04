@@ -2,12 +2,13 @@
 
 # -o
 # 소스 폴더 내 pdf, html, docx에서 텍스트를 추출하여 OpenAI api 호출, 분석하여 번역사 정보를 엑셀파일에 저장하는 프로젝트
+# 프롬프트 내 json 형식수정
 # - 다수 파일 batch 처리에 에러발생 대비
 # - selenium webdriver instance 재사용
 # 각 파일에 대한 고유 식별자를 생성하고, 이를 사용하여 텍스트와 API 응답을 정확히 매칭
 # 사용 토큰수와 비용 출력
 # openai verson 0.28 / pip install openai==0.28.0
-# 컬럼 추가- '통번역분야' -o
+# 컬럼 추가- '통번역분야'
 
 
 import os
@@ -32,14 +33,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\abba resource"
+source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\@test\test_sub"
 target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
 
 # 배치 처리 크기 설정
 batch_size = 1
 
 # 엑셀 파일 저장 경로 수정
-target_path = os.path.join(target_folder, f'translators_pool_2nd.xlsx')
+target_path = os.path.join(target_folder, f'translators_jsonTest.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
 total_processed_tokens = 0
@@ -140,7 +141,7 @@ def format_multiline_text(text):
     if isinstance(text, list):
         text = '; '.join(text)
     elif isinstance(text, dict):
-        text = '; '.join([f"{key}: {value}" for key, value in text.items()])
+        text = '\n'.join([f"{key}: {value}" for key, value in text.items()])
     elif isinstance(text, str):
         # 줄바꿈 후 들여쓰기를 제거
         return text.replace('; ', ';\n').replace('\n ', '\n')
@@ -148,21 +149,6 @@ def format_multiline_text(text):
         # 기타 타입은 문자열로 변환 후 처리
         return str(text).replace('; ', ';\n').replace('\n ', '\n')
     return text.replace('; ', ';\n').replace('\n ', '\n')
-
-
-def clean_response_text(text):
-    # Remove non-JSON parts from the response
-    clean_text = re.sub(
-        r'### JSON Array for 텍스트 [0-9]+\[|\]\]### JSON Array for 텍스트 [0-9]+\[|\]', '', text)
-    clean_text = re.sub(r'[\x00-\x1F\x7F]', '', clean_text).strip()
-
-    # Remove all '[' and ']' from the entire string
-    clean_text = clean_text.replace('[', '').replace(']', '')
-
-    clean_text = clean_text.replace('}{', '},{')
-    clean_text = f'[{clean_text}]'
-
-    return clean_text
 
 
 def generate_unique_identifier(file_path):
@@ -185,27 +171,27 @@ def batch_extract_information(texts_with_ids):
         "나이": "44세, 1980년생",
         "자기소개": "양중남은 한영 통역 대학원을 졸업하고 미국에서 심리학 박사 학위를 받은 후 20년간 연구원으로 재직하였으며, 현재는 8년 경력의 프리랜서 번역사로 활동하고 있습니다. 영어와 한국어를 자유롭게 구사하는 바이링구얼 번역사입니다.",
         "경력년수": "8년 from 2001",
-        "번역가능언어": "영어>한국어, 한국어>영어",
-        "통역가능언어": "영어, 일본어",
-        "번역툴가능여부": "Trados, MemoQ",
-        "주요학력":
-        "박사, 실험 심리학, New York University (1995-1999);
-        학사, 영어 교육과, 제주 대학교 (1977-1981)",
-        "주요경력":
-        "프리랜서 번역사 (2012-현재); 제주 대학 교육학과 대학원 강사 (2016-2018);
-        연구원, NASA Ames 연구소 (2002-2004);
-        박사후 과정, University of Chicago (1999-2001)",
-        "해외학업유무": "New York University, Ball State University, University of Chicago",
-        "경쟁력":
-        "다양한 분야 번역 경험 (자연과학, 사회과학, 비즈니스, 금융, 의학, 컴퓨터 과학 및 IT);
-        영한 자막 번역 경험 (의학, 교육, 음악, 드라마 등 다양한 분야에서 약 700개 비디오 번역);
-        미국에서 다수의 연구 논문 발표",
-        "통번역 분야":
-        "IT - 교육, 세미나 통역 (SAP, IBM, LG CNS, Oracle);
-        금융 - 계약서, 보고서 번역 (한국씨티은행, Morgan Stanley, Bank of America);
-        자동차 - 매뉴얼, 사용자 설명서 번역 (Mercedes-Benz, BMW, MAN Truck & Bus, Volkswagen, Audi);
-        게임 현지화 - 컴투스㈜ (서머너즈 워, 소울시커, 사커 스피리츠 등);",
-        "unique_id": "5f4dcc3b5aa765d61d8327deb882cf99",
+        "번역가능언어": ["영어>한국어", "한국어>영어"],
+        "통역가능언어": ["영어", "일본어"],
+        "번역툴가능여부": ["Trados", "MemoQ"],
+        "주요학력": [
+            "박사, 실험 심리학, New York University (1995-1999)",
+            "학사, 영어 교육과, 제주 대학교 (1977-1981)"
+        ],
+        "주요경력": [
+            "프리랜서 번역사 (2012-현재)",
+            "제주 대학 교육학과 대학원 강사 (2016-2018)",
+            "연구원, NASA Ames 연구소 (2002-2004)"
+        ],
+        "해외학업유무": ["New York University", "Ball State University", "University of Chicago"],
+        "경쟁력": "다양한 분야 번역 경험 (자연과학, 사회과학, 비즈니스, 금융, 의학, 컴퓨터 과학 및 IT); 영한 자막 번역 경험 (의학, 교육, 음악, 드라마 등 다양한 분야에서 약 700개 비디오 번역); 미국에서 다수의 연구 논문 발표",
+        "통번역 분야": [
+            "IT - 교육, 세미나 통역 (SAP, IBM, LG CNS, Oracle)",
+            "금융 - 계약서, 보고서 번역 (한국씨티은행, Morgan Stanley, Bank of America)",
+            "자동차 - 매뉴얼, 사용자 설명서 번역 (Mercedes-Benz, BMW, MAN Truck & Bus, Volkswagen, Audi)",
+            "게임 현지화 - 컴투스㈜ (서머너즈 워, 소울시커, 사커 스피리츠 등)"
+        ],
+        "unique_id": "5f4dcc3b5aa765d61d8327deb882cf99"
     }}
     """
 
@@ -230,10 +216,8 @@ def batch_extract_information(texts_with_ids):
         exit(1)
 
     response_text = response['choices'][0]['message']['content'].strip()
-
     response_text = response_text.replace(
         "```json", "").replace("```", "").strip()
-    response_text = clean_response_text(response_text)
 
     try:
         extracted_infos = json.loads(response_text)
@@ -241,6 +225,15 @@ def batch_extract_information(texts_with_ids):
             if 'unique_id' not in extracted_info:
                 log_error(f"Missing unique_id in response: {extracted_info}")
                 continue
+            if '번역가능언어' in extracted_info:
+                extracted_info['번역가능언어'] = format_multiline_text(
+                    extracted_info['번역가능언어'])
+            if '통역가능언어' in extracted_info:
+                extracted_info['통역가능언어'] = format_multiline_text(
+                    extracted_info['통역가능언어'])
+            if '번역툴가능여부' in extracted_info:
+                extracted_info['번역툴가능여부'] = format_multiline_text(
+                    extracted_info['번역툴가능여부'])
             if '주요학력' in extracted_info:
                 extracted_info['주요학력'] = format_multiline_text(
                     extracted_info['주요학력'])
@@ -317,8 +310,8 @@ def save_to_excel(file_data, target_path):
                     info.get("나이", ""),
                     info.get("자기소개", ""),
                     info.get("경력년수", ""),
-                    info.get("번역가능언어", ""),
-                    info.get("통역가능언어", ""),
+                    format_multiline_text(info.get("번역가능언어", "")),
+                    format_multiline_text(info.get("통역가능언어", "")),
                     format_multiline_text(info.get("번역툴가능여부", "")),
                     format_multiline_text(info.get("주요학력", "")),
                     format_multiline_text(info.get("주요경력", "")),
