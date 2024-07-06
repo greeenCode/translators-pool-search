@@ -2,13 +2,14 @@
 
 # -o
 # 소스 폴더 내 pdf, html, docx에서 텍스트를 추출하여 OpenAI api 호출, 분석하여 번역사 정보를 엑셀파일에 저장하는 프로젝트
+# headers = ["이름", "File Link", "이메일", "전화번호", "거주지", "나이", "자기소개", "경력년수","번역가능언어", "통역가능언어", "번역툴가능여부", "주요학력", "주요경력", "해외학업유무", "경쟁력", "통번역 분야", "파일수정일"]
+# docx 에서 text 추출 보완
 # 프롬프트 내 json 형식수정
 # - 다수 파일 batch 처리에 에러발생 대비
 # - selenium webdriver instance 재사용
 # 각 파일에 대한 고유 식별자를 생성하고, 이를 사용하여 텍스트와 API 응답을 정확히 매칭
 # 사용 토큰수와 비용 출력
 # openai verson 0.28 / pip install openai==0.28.0
-# 컬럼 추가- '통번역분야'
 
 
 import os
@@ -22,6 +23,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
 import re
 from docx import Document
+import docx2txt
 import time  # 경과시간 측정을 위한 모듈
 import hashlib
 
@@ -33,14 +35,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\abba resource"
+source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\@test\test_sub\test_subsub"
 target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
 
 # 배치 처리 크기 설정
 batch_size = 1
 
 # 엑셀 파일 저장 경로 수정
-target_path = os.path.join(target_folder, f'translators_pool_2nd.xlsx')
+target_path = os.path.join(target_folder, f'translators_pool_2nd_r3.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
 total_processed_tokens = 0
@@ -109,41 +111,47 @@ def extract_text_from_html(file_path, driver):
 
 
 def extract_text_from_docx(file_path):
-    text = ""
-    try:
-        doc = Document(file_path)
-        full_text = []
+    def extract_text_with_docx2txt(file_path):
+        try:
+            return docx2txt.process(file_path)
+        except Exception as e:
+            print(f'Error using docx2txt: {e}')
+            return ''
 
-        # 문서의 모든 문단을 순회하며 텍스트를 추출
-        for para in doc.paragraphs:
+    def is_list_all_whitespace(lst):
+        return all(not item.strip() for item in lst)
+
+    doc = Document(file_path)
+    full_text = []
+
+    # 문서의 모든 문단을 순회하며 텍스트를 추출
+    for para in doc.paragraphs:
+        full_text.append(para.text)
+
+    # 문서의 모든 표를 순회하며 텍스트를 추출
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = []
+            for cell in row.cells:
+                row_text.append(cell.text)
+            full_text.append('\t'.join(row_text))
+
+    # 문서의 헤더와 푸터에서 텍스트 추출
+    for section in doc.sections:
+        header = section.header
+        footer = section.footer
+        for para in header.paragraphs:
+            full_text.append(para.text)
+        for para in footer.paragraphs:
             full_text.append(para.text)
 
-        # 문서의 모든 표를 순회하며 텍스트를 추출
-        for table in doc.tables:
-            for row in table.rows:
-                row_text = []
-                for cell in row.cells:
-                    row_text.append(cell.text)
-                full_text.append('\t'.join(row_text))
+    if not full_text or is_list_all_whitespace(full_text):
+        docx2txt_text = extract_text_with_docx2txt(file_path)
+        if docx2txt_text:
+            full_text = docx2txt_text.splitlines()
+            # print(f'docx2txt 추출: {full_text}')
 
-        # 문서의 헤더와 푸터에서 텍스트 추출
-        for section in doc.sections:
-            header = section.header
-            footer = section.footer
-            for para in header.paragraphs:
-                full_text.append(para.text)
-            for para in footer.paragraphs:
-                full_text.append(para.text)
-
-        text = '\n'.join(full_text)
-
-        if not text.strip():  # 텍스트가 비어있는지 확인
-            raise ValueError("Extracted text is empty")
-    except Exception as e:
-        log_error(f"Error extracting text from DOCX {file_path}: {e}")
-        print(f"Error extracting text from DOCX {file_path}: {e}")
-        return None  # None을 반환하여 텍스트 추출 실패를 명시
-    return text
+    return '\n'.join(full_text)
 
 
 def format_multiline_text(text):
