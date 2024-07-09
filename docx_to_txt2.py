@@ -39,6 +39,7 @@ def extract_text_from_docx(file_path):
             full_text.append(para.text)
         for para in footer.paragraphs:
             full_text.append(para.text)
+            # full_text = None    # None 테스트
 
     if not full_text or is_list_all_whitespace(full_text):
         docx2txt_text = extract_text_with_docx2txt(file_path)
@@ -57,8 +58,8 @@ def save_text_to_file(text, file_path):
 
 # 사용 예시
 # 여기에 .docx 파일 경로를 입력하세요.
-file_path = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\@test\test_sub\test_subsub\업데이트_이력서_박소운_20210113.docx"
+file_path = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\abba resource\2020 지원자\1.영어\김영주.docx"
 extracted_text = extract_text_from_docx(file_path)
 save_text_to_file(extracted_text, file_path)
-# print(f'추출 텍스트: {full_text}')
+# print(f'추출 텍스트: {extracted_text}')
 print(f'추출된 텍스트가 저장되었습니다: {os.path.splitext(file_path)[0] + ".txt"}')
