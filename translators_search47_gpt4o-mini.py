@@ -41,14 +41,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r"D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\관광통역사"
-target_folder = r'D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
+source_folder = r"D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\@test"
+target_folder = r'D:\Users\ie-woo\Documents\Google 드라이브\docs\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search'
 
 # 배치 처리 크기 설정
 batch_size = 1
 
 # 엑셀 파일 저장 경로 수정
-target_path = os.path.join(target_folder, f'interpreting_guide02.xlsx')
+target_path = os.path.join(target_folder, f'translators_pool_gpt4o.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
 total_processed_tokens = 0
@@ -77,7 +77,6 @@ def extract_text_from_pdf(file_path):
         print(f"Error extracting text from PDF {file_path}: {e}")
         return None  # None을 반환하여 텍스트 추출 실패를 명시
 
-    print(text)
     return text
 
 
@@ -227,7 +226,7 @@ def batch_extract_information(texts_with_ids):
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a data extraction assistant."},
                 {"role": "user", "content": prompt}
@@ -281,8 +280,8 @@ def batch_extract_information(texts_with_ids):
         completion_tokens = response['usage']['completion_tokens']
         total_tokens = response['usage']['total_tokens']
 
-        input_cost = (prompt_tokens / 1_000_000) * 5
-        output_cost = (completion_tokens / 1_000_000) * 15
+        input_cost = (prompt_tokens / 1_000_000) * 0.15
+        output_cost = (completion_tokens / 1_000_000) * 0.60
         batch_cost = input_cost + output_cost
 
         global total_processed_tokens
@@ -292,8 +291,7 @@ def batch_extract_information(texts_with_ids):
 
         end_time = time.time()
         batch_processed_time = end_time - start_time
-        batch_processed_time_str = f"{
-            int(batch_processed_time // 60):02}:{int(batch_processed_time % 60):02}"
+        batch_processed_time_str = f"{int(batch_processed_time // 60):02}:{int(batch_processed_time % 60):02}"
 
         print(f"Prompt tokens: {prompt_tokens}")
         print(f"Completion tokens: {completion_tokens}")
@@ -471,8 +469,7 @@ if proceed in ('yes', 'y', ''):
                                     '%Y-%m-%d')
                                 relative_file_path = os.path.relpath(
                                     file_info['file_path'], start=target_folder)
-                                extracted_info['File Link'] = f'=HYPERLINK("{
-                                    relative_file_path}")'
+                                extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
                                 file_data.append(extracted_info)
                                 break
 
@@ -504,8 +501,7 @@ if proceed in ('yes', 'y', ''):
                             '%Y-%m-%d')
                         relative_file_path = os.path.relpath(
                             file_info['file_path'], start=target_folder)
-                        extracted_info['File Link'] = f'=HYPERLINK("{
-                            relative_file_path}")'
+                        extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
                         file_data.append(extracted_info)
                         break
 
