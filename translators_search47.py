@@ -77,14 +77,14 @@ def extract_text_from_pdf(file_path):
         print(f"Error extracting text from PDF {file_path}: {e}")
         return None  # None을 반환하여 텍스트 추출 실패를 명시
 
-    print(text)
+    # print(text)
     return text
 
 
 # WebDriver 초기화
 chrome_options = Options()
 chrome_options.add_argument("--headless")  # 브라우저 창을 띄우지 않음
-chrome_driver_path = r'C:\Util\chromedriver-win64\chromedriver.exe'  # ChromeDriver 경로로 변경
+# chrome_driver_path = r'C:\Util\chromedriver-win64\chromedriver.exe'  # ChromeDriver 경로로 변경
 # service = Service(chrome_driver_path)
 # driver = webdriver.Chrome(service=service, options=chrome_options)
 service = Service(ChromeDriverManager().install())
@@ -178,7 +178,14 @@ def format_multiline_text(text):
 
 
 def generate_unique_identifier(file_path):
-    return hashlib.md5(file_path.encode('utf-8')).hexdigest()
+    # 파일 경로를 인코딩하여 MD5 해시 생성
+    hash_value = hashlib.md5(file_path.encode('utf-8')).hexdigest()
+
+    # 파일 경로와 생성된 해시 값을 출력
+    print(f"File Path: {file_path}")
+    print(f"Generated Hash: {hash_value}")
+
+    return hash_value
 
 
 def batch_extract_information(texts_with_ids):
