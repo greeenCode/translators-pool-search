@@ -1,3 +1,4 @@
+# PDF 가 이미지로 되어 있을 때 별도로 수행
 
 import pytesseract
 from pdf2image import convert_from_path
@@ -12,9 +13,9 @@ import time  # 경과시간 측정을 위한 모듈
 
 
 # Configurations
-file_path = r"D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2024 1014a 번역외 인력풀\영어 Writing 교사 지원자\Elyssa_2024CVElyssa.pdf"
-target_folder = r'D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\@test\result'
-target_path = os.path.join(target_folder, f'aplicant_profiles.xlsx')
+file_path = r"D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\_터키어문학번역\Saramin_Resume_241126145954\에르칸아이쉐귤_파일이력서_image.pdf"
+target_folder = r"D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\_터키어문학번역"
+target_path = os.path.join(target_folder, f'test_result.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
 total_processed_tokens = 0
