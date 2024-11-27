@@ -26,9 +26,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r"D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\@test\관광-번역"
+source_folder = r"D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2024 1014a 번역외 인력풀"
 target_folder = r'D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\@test\result'
-target_path = os.path.join(target_folder, f'test_result.xlsx')
+target_path = os.path.join(target_folder, f'aplicant_profiles.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
 total_processed_tokens = 0
@@ -118,7 +118,7 @@ def extract_information(text):
     prompt = f"""
     주어진 텍스트에서 번역사 정보를 분석하여 다음 항목을 JSON 형식으로 추출해줘. JSON 형식의 사례는 아래와 같다.
 
-    번역사의 이름(성명), 이메일, 전화번호(+821027097063 > 010-2709-7063로 변환, 알수없으면 '알 수 없음'), 현 거주지(도시 이름까지만, 알수없으면 '알 수 없음'), 나이(출생년도가 표시되어 있으면 현재 년도까지 추정된 나이와 출생년도를 표기하고, 출생년도가 없으면 명시된 나이를 표기하고, 알 수없으면 '알 수 없음'), 자기 소개 개요(프로필 내용을 바탕으로 400자 이내로 가능한 자세히 요약), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어(한국어>영어 처럼 반드시 언어방향 명시, "불어"라는 단어는 "프랑스어"로 바꿔써), 통역 가능한 언어("불어"라는 단어는 "프랑스어"로 바꿔써), 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력(주요학력과 주요경력, 그 밖의 정보를 바탕으로 400자 이내로 가능한 자세히 요약 ), 통번역분야(경력을 바탕으로 번역, 통역 가능한 분야의 키워드와 사례, 주요 발주 기업명 포함, 빈도순으로 최대 10개 분야까지)
+    번역사의 이름(이름은 번역하지 말고 사용한 언어 그대로 써줘), 이메일, 전화번호(+821027097063 > 010-2709-7063로 변환, 알수없으면 '알 수 없음'), 현 거주지(도시 이름까지만, 알수없으면 '알 수 없음'), 나이(출생년도가 표시되어 있으면 현재 년도까지 추정된 나이와 출생년도를 표기하고, 출생년도가 없으면 명시된 나이를 표기하고, 알 수없으면 '알 수 없음'), 자기 소개 개요(프로필 내용을 바탕으로 400자 이내로 가능한 자세히 요약), 번역 경력년수(명시되어있다면 명시된 년수와 활동 내역으로 추정한 시작년도를 표기하고, 명시되지 않았다면 활동 내역으로 추정한 시작년도부터 현재까지의 경과년수와 시작년도를 표기해줘. 알 수 없다면 '알 수 없음'), 번역 가능한 언어(한국어>영어 처럼 반드시 언어방향 명시, "불어"라는 단어는 "프랑스어"로 바꿔써), 통역 가능한 언어("불어"라는 단어는 "프랑스어"로 바꿔써), 번역 툴  사용가능여부(Trados, MemoQ, Smartcat 등 번역 툴 사용가능하면 툴 이름을 표기하고, 알수없으면 "알 수 없음"), 주요 학력, 주요 경력, 해외(한국 외) 교육기관에서 공부경험 유무(알 수 없다면 '알 수 없음'), 그밖에 번역사로서 경쟁력(주요학력과 주요경력, 그 밖의 정보를 바탕으로 400자 이내로 가능한 자세히 요약 ), 통번역분야(경력을 바탕으로 번역, 통역 가능한 분야의 키워드와 사례, 주요 발주 기업명 포함, 빈도순으로 최대 10개 분야까지)
 
     JSON 형식의 사례:
     {{
@@ -156,7 +156,7 @@ def extract_information(text):
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a data extraction assistant."},
                 {"role": "user", "content": prompt}
@@ -206,8 +206,8 @@ def extract_information(text):
         completion_tokens = response['usage']['completion_tokens']
         total_tokens = response['usage']['total_tokens']
 
-        input_cost = (prompt_tokens / 1_000_000) * 5
-        output_cost = (completion_tokens / 1_000_000) * 15
+        input_cost = (prompt_tokens / 1_000_000) * 0.15
+        output_cost = (completion_tokens / 1_000_000) * 0.6
         processed_cost = input_cost + output_cost
 
         global total_processed_tokens
