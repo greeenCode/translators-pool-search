@@ -26,9 +26,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # Configurations
-source_folder = r"D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search\abba\@test\관광-번역"
+source_folder = r"D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\몽골어"
 target_folder = r"D:\Users\ie-woo\Documents\인터비즈시스템N\_작업\2022 0516a 다국어 번역사\@Translators-Pool-Search"
-target_path = os.path.join(target_folder, f'test_result.xlsx')
+target_path = os.path.join(target_folder, f'translators_pool.xlsx')
 log_path = os.path.join(target_folder, 'error_log.txt')
 
 total_processed_tokens = 0
