@@ -218,8 +218,7 @@ def extract_information(text):
 
         end_time = time.time()
         processed_time = end_time - start_time
-        processed_time_str = f"{
-            int(processed_time // 60):02}:{int(processed_time % 60):02}"
+        processed_time_str = f"{int(processed_time // 60):02}:{int(processed_time % 60):02}"
 
         print(f"Prompt tokens: {prompt_tokens}")
         print(f"Completion tokens: {completion_tokens}")
@@ -383,8 +382,7 @@ if proceed in ('yes', 'y', ''):
                         '%Y-%m-%d')
                     relative_file_path = os.path.relpath(
                         file_path, start=target_folder)
-                    extracted_info['File Link'] = f'=HYPERLINK("{
-                        relative_file_path}")'
+                    extracted_info['File Link'] = f'=HYPERLINK("{relative_file_path}")'
                     file_data.append(extracted_info)
 
         except Exception as e:
@@ -410,8 +408,7 @@ if os.path.exists(target_path):
 # main 함수 경과시간 계산
 main_end_time = time.time()
 main_processed_time = main_end_time - main_start_time
-main_processed_time_str = f"{
-    int(main_processed_time // 60):02}:{int(main_processed_time % 60):02}"
+main_processed_time_str = f"{int(main_processed_time // 60):02}:{int(main_processed_time % 60):02}"
 
 
 # 처리 결과 출력

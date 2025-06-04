@@ -1,0 +1,9 @@
+openai>=1.0.0
+pandas
+PyYAML
+PyMuPDF
+openpyxl
+python-docx
+docx2txt
+selenium
+webdriver-manager 
